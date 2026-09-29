@@ -1858,8 +1858,8 @@ onMounted(() => {
                 <h3 class="text-sm font-black uppercase text-slate-800 dark:text-white">Envio de E-mails</h3>
                 <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Serviço gerenciado pela Rakiti</p>
               </div>
-              <Tag :value="config.provedor === 'resend' ? 'ATIVO' : 'NÃO CONFIGURADO'"
-                  :severity="config.provedor === 'resend' ? 'success' : 'warning'"
+              <Tag :value="config.provedor && config.provedor !== 'nao_configurado' ? 'ATIVO' : 'NÃO CONFIGURADO'"
+                  :severity="config.provedor && config.provedor !== 'nao_configurado' ? 'success' : 'warning'"
                   class="!text-[9px] !px-4 !py-2 !rounded-xl !font-black shadow-sm tracking-widest" />
             </div>
 
@@ -1874,7 +1874,7 @@ onMounted(() => {
                 </div>
                 <div class="flex flex-col gap-2">
                   <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Provedor</label>
-                  <InputText :value="config.provedor === 'resend' ? 'Resend' : 'Não configurado (fale com o suporte)'" readonly class="custom-input !bg-slate-50 dark:!bg-slate-950 !text-[12px]" />
+                  <InputText :value="({ zeptomail: 'Zoho ZeptoMail', resend: 'Resend' })[config.provedor] || 'Não configurado (fale com o suporte)'" readonly class="custom-input !bg-slate-50 dark:!bg-slate-950 !text-[12px]" />
                 </div>
               </div>
 
