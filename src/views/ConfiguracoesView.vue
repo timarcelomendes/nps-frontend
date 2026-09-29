@@ -438,21 +438,64 @@ const integracoesConfig = ref({
 // URL do webhook com o token secreto da conta (vem da API)
 const webhookFilloutURL = ref('');
 const dadosConta = ref({ nome: '', plano: '' });
+const integracaoCsat = ref({ url: '', chave: '' });
+const mostrarChaveApi = ref(false);
 const carregarConta = async () => {
   try {
     const res = await api.get('/conta');
     webhookFilloutURL.value = res.data.webhook_url || '';
     dadosConta.value = { nome: res.data.nome, plano: res.data.plano };
+    integracaoCsat.value = { url: res.data.csat_api_url || '', chave: res.data.api_key || '' };
   } catch (error) { console.error(error); }
 };
 const regenerarWebhook = async () => {
-  if (!confirm('Gerar um novo link? O link atual para de funcionar e será preciso atualizar no Fillout.')) return;
+  if (!confirm('Gerar uma nova chave? O link do webhook e a chave de API atuais param de funcionar.')) return;
   try {
     const res = await api.post('/conta/webhook/regenerar');
     webhookFilloutURL.value = res.data.webhook_url;
-    toast.add({ severity: 'success', summary: 'Novo link gerado', detail: 'Atualize o webhook no Fillout.', life: 5000 });
+    await carregarConta();
+    toast.add({ severity: 'success', summary: 'Nova chave gerada', detail: 'Atualize o webhook no Fillout e a chave nas integrações.', life: 5000 });
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.detail || 'Não foi possível gerar o link.', life: 5000 });
+  }
+};
+
+const exemploCurlCsat = computed(() => `curl -X POST "${integracaoCsat.value.url}" \\
+  -H "X-Api-Key: ${mostrarChaveApi.value ? integracaoCsat.value.chave : 'SUA_CHAVE'}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"email": "cliente@exemplo.com", "nome": "Maria", "referencia": "PED-1234", "assunto": "a entrega do pedido 1234"}'`);
+
+const copiarTexto = async (texto, rotulo = 'Copiado') => {
+  try {
+    await navigator.clipboard.writeText(texto);
+    toast.add({ severity: 'success', summary: rotulo, life: 2500 });
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível copiar.' });
+  }
+};
+
+// Envio manual de CSAT (teste ou uso avulso)
+const csatManual = ref({ email: '', nome: '', referencia: '', assunto: '' });
+const enviandoCsat = ref(false);
+const ultimoLinkCsat = ref('');
+const enviarCsatManual = async () => {
+  if (!csatManual.value.email) {
+    toast.add({ severity: 'warn', summary: 'Informe o e-mail do cliente', life: 3000 });
+    return;
+  }
+  enviandoCsat.value = true;
+  try {
+    const res = await api.post('/csat/enviar', { ...csatManual.value, enviar_email: true });
+    ultimoLinkCsat.value = res.data.link;
+    if (res.data.status === 'Enviado') {
+      toast.add({ severity: 'success', summary: 'Pesquisa enviada', detail: `Convite enviado para ${csatManual.value.email}.`, life: 4000 });
+    } else {
+      toast.add({ severity: 'warn', summary: 'Link criado, e-mail não enviado', detail: res.data.erro || 'Verifique o envio de e-mail.', life: 6000 });
+    }
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.detail || 'Não foi possível enviar.', life: 5000 });
+  } finally {
+    enviandoCsat.value = false;
   }
 };
 
@@ -587,6 +630,9 @@ const regrasConfig = ref({
   sla_promotor_dias: 7,
   recorrencia_dias: 90,
   survey_url: '',
+  formulario_tipo: 'proprio',
+  pergunta_nps: 'De 0 a 10, quanto você recomendaria a {empresa} a um amigo ou colega?',
+  pergunta_csat: 'Como você avalia {assunto}?',
   fillout_campos: ['clienteId', 'email', 'nome', 'empresa', 'empresa_id'],
   email_template_html: '', 
   email_agradecimento_promotor: '',
@@ -618,6 +664,9 @@ const carregarRegras = async () => {
     regrasConfig.value = { 
       ...res.data, 
       robo_ativo: String(res.data.robo_ativo).toLowerCase() === 'true',
+      formulario_tipo: res.data.formulario_tipo === 'externo' ? 'externo' : 'proprio',
+      pergunta_nps: res.data.pergunta_nps || 'De 0 a 10, quanto você recomendaria a {empresa} a um amigo ou colega?',
+      pergunta_csat: res.data.pergunta_csat || 'Como você avalia {assunto}?',
       fillout_campos: res.data.fillout_campos ? res.data.fillout_campos.split(',') : [],
       lembrete_qtd_maxima: parseInt(res.data.lembrete_qtd_maxima) || 0,
       lembrete_dias_1: parseInt(res.data.lembrete_dias_1) || 3,
@@ -841,7 +890,7 @@ const prepararHtmlParaTeste = (htmlOriginal) => {
 
 const loadingTesteConvite = ref(false);
 const emailTesteConvite = ref('');
-const modeloBaseConvite = `<!DOCTYPE html><html><body style="background-color: #f4f4f4; padding: 40px; font-family: sans-serif;"><div style="background-color: #ffffff; padding: 30px; border-radius: 8px; max-width: 600px; margin: 0 auto; text-align: center;"><h2 style="color: #333;">Olá, {nome}!</h2><p style="color: #555; font-size: 16px;">Como avalia a sua parceria com a <strong>{empresa}</strong>?</p><a href="{survey_url}" style="display: inline-block; padding: 14px 28px; background-color: #F97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 25px;">Responder Pesquisa</a></div></body></html>`;
+const modeloBaseConvite = `<!DOCTYPE html><html><body style="background-color: #f4f4f4; padding: 40px; font-family: sans-serif;"><div style="background-color: #ffffff; padding: 30px; border-radius: 8px; max-width: 600px; margin: 0 auto; text-align: center;"><h2 style="color: #333;">Olá, {nome}!</h2><p style="color: #555; font-size: 16px;">De 0 a 10, quanto você recomendaria a nossa empresa a um amigo ou colega?</p>{botoes_nota}<a href="{survey_url}" style="display: inline-block; padding: 14px 28px; background-color: #F97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 25px;">Responder Pesquisa</a></div></body></html>`;
 
 const testarTemplateConvite = async () => {
   if (!emailTesteConvite.value) return toast.add({ severity: 'warn', summary: 'Aviso', detail: 'Introduza um e-mail.' });
@@ -1365,21 +1414,56 @@ onMounted(() => {
                   </div>
 
                   <div class="flex flex-col gap-2 pt-2">
-                    <label class="text-[9px] font-black uppercase tracking-widest text-orange-500 ml-1 flex items-center justify-between">
-                      Link do Formulário de Pesquisa
-                      <i class="pi pi-info-circle text-slate-400" v-tooltip.top="'Endereço do seu formulário (ex.: Fillout). Os convites levam o cliente para este link. Sem ele, nenhum convite é enviado.'"></i>
-                    </label>
-                    <InputText v-model="regrasConfig.survey_url" placeholder="https://forms.fillout.com/t/SEU_FORMULARIO" class="custom-input !bg-white dark:!bg-slate-900 !text-[11px] !font-mono shadow-sm !rounded-xl" :class="{'!border-rose-400': !regrasConfig.survey_url}" />
-                    <p v-if="!regrasConfig.survey_url" class="text-[9px] text-rose-500 font-bold ml-1 uppercase tracking-widest">Obrigatório para enviar pesquisas</p>
+                    <label class="text-[9px] font-black uppercase tracking-widest text-orange-500 ml-1">Formulário de pesquisa</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button type="button" @click="regrasConfig.formulario_tipo = 'proprio'"
+                        :class="['text-left p-3 rounded-xl border-2 transition-all', regrasConfig.formulario_tipo === 'proprio' ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10' : 'border-slate-200 dark:border-slate-700']">
+                        <span class="block text-xs font-black text-slate-800 dark:text-white">Formulário da Rakiti <span class="text-[9px] text-orange-500">(recomendado)</span></span>
+                        <span class="block text-[10px] text-slate-500 mt-1">Pronto para usar. O cliente responde com um clique no e-mail.</span>
+                      </button>
+                      <button type="button" @click="regrasConfig.formulario_tipo = 'externo'"
+                        :class="['text-left p-3 rounded-xl border-2 transition-all', regrasConfig.formulario_tipo === 'externo' ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10' : 'border-slate-200 dark:border-slate-700']">
+                        <span class="block text-xs font-black text-slate-800 dark:text-white">Formulário externo</span>
+                        <span class="block text-[10px] text-slate-500 mt-1">Use o seu próprio (ex.: Fillout) com webhook.</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div class="flex flex-col gap-2 pt-2">
-                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 flex items-center justify-between">
-                      Dados enviados ao formulário
-                      <i class="pi pi-info-circle text-slate-400" v-tooltip.top="'Variáveis invisíveis passadas para a URL do Fillout'"></i>
-                    </label>
-                    <MultiSelect v-model="regrasConfig.fillout_campos" :options="opcoesCamposFillout" optionLabel="label" optionValue="value" display="chip" placeholder="Selecione as variáveis" class="custom-input !bg-white dark:!bg-slate-900 !py-2 shadow-sm !rounded-xl" />
-                  </div>
+                  <template v-if="regrasConfig.formulario_tipo !== 'externo'">
+                    <div class="flex flex-col gap-2 pt-2">
+                      <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 flex items-center justify-between">
+                        Pergunta de NPS
+                        <i class="pi pi-info-circle text-slate-400" v-tooltip.top="'{empresa} vira o nome da sua empresa.'"></i>
+                      </label>
+                      <InputText v-model="regrasConfig.pergunta_nps" class="custom-input !bg-white dark:!bg-slate-900 !text-[11px] shadow-sm !rounded-xl" />
+                    </div>
+                    <div class="flex flex-col gap-2 pt-2">
+                      <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 flex items-center justify-between">
+                        Pergunta de satisfação (CSAT)
+                        <i class="pi pi-info-circle text-slate-400" v-tooltip.top="'{assunto} vira o que foi avaliado, ex.: a entrega do pedido 1234.'"></i>
+                      </label>
+                      <InputText v-model="regrasConfig.pergunta_csat" class="custom-input !bg-white dark:!bg-slate-900 !text-[11px] shadow-sm !rounded-xl" />
+                    </div>
+                  </template>
+
+                  <template v-else>
+                    <div class="flex flex-col gap-2 pt-2">
+                      <label class="text-[9px] font-black uppercase tracking-widest text-orange-500 ml-1 flex items-center justify-between">
+                        Link do formulário externo
+                        <i class="pi pi-info-circle text-slate-400" v-tooltip.top="'Endereço do seu formulário (ex.: Fillout). As respostas chegam pelo webhook (aba Integrações).'"></i>
+                      </label>
+                      <InputText v-model="regrasConfig.survey_url" placeholder="https://forms.fillout.com/t/SEU_FORMULARIO" class="custom-input !bg-white dark:!bg-slate-900 !text-[11px] !font-mono shadow-sm !rounded-xl" :class="{'!border-rose-400': !regrasConfig.survey_url}" />
+                      <p v-if="!regrasConfig.survey_url" class="text-[9px] text-rose-500 font-bold ml-1 uppercase tracking-widest">Obrigatório no formulário externo</p>
+                    </div>
+
+                    <div class="flex flex-col gap-2 pt-2">
+                      <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 flex items-center justify-between">
+                        Dados enviados ao formulário
+                        <i class="pi pi-info-circle text-slate-400" v-tooltip.top="'Variáveis invisíveis passadas para a URL do Fillout'"></i>
+                      </label>
+                      <MultiSelect v-model="regrasConfig.fillout_campos" :options="opcoesCamposFillout" optionLabel="label" optionValue="value" display="chip" placeholder="Selecione as variáveis" class="custom-input !bg-white dark:!bg-slate-900 !py-2 shadow-sm !rounded-xl" />
+                    </div>
+                  </template>
                 </div>
               </div>
 
@@ -1566,6 +1650,7 @@ onMounted(() => {
                   <Tag value="{nome}" class="!bg-sky-900/40 !text-sky-300 !text-[9px] !font-mono border border-sky-800/50" />
                   <Tag value="{empresa}" class="!bg-sky-900/40 !text-sky-300 !text-[9px] !font-mono border border-sky-800/50" />
                   <Tag value="{survey_url}" class="!bg-rose-900/40 !text-rose-300 !text-[9px] !font-mono border border-rose-800/50" v-tooltip.top="'Obrigatório (Link do Botão)'" />
+                  <Tag value="{botoes_nota}" class="!bg-orange-900/40 !text-orange-300 !text-[9px] !font-mono border border-orange-800/50" v-tooltip.top="'Botões de 0 a 10 clicáveis no e-mail (formulário da Rakiti)'" />
                   
                   <Button label="Auto-Corrigir Imagens" icon="pi pi-magic" @click="aplicarImagensInteligente('convite')" class="ml-auto !bg-sky-500/10 hover:!bg-sky-500/30 !text-sky-300 !border-none !text-[9px] !font-black !uppercase tracking-widest !py-1 !px-3 rounded-lg shadow-sm transition-colors shrink-0" v-tooltip.top="'Injeta as URLs das imagens hospedadas.'" />
                 </div>
@@ -1933,6 +2018,55 @@ onMounted(() => {
             <h3 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest mb-1">Integrações de Sistema</h3>
             <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Ligue o Hub de NPS a ferramentas externas como formulários e canais de comunicação.</p>
           </div>
+          <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-6">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 bg-orange-50 dark:bg-orange-500/20 rounded-xl flex items-center justify-center"><i class="pi pi-truck text-orange-500 text-xl"></i></div>
+              <div>
+                <h4 class="text-sm font-black text-slate-800 dark:text-white">Pesquisa de satisfação após entrega (CSAT)</h4>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Seu sistema avisa, a Rakiti pergunta</p>
+              </div>
+            </div>
+            <p class="text-xs text-slate-500 leading-relaxed mb-4">
+              Quando um pedido for entregue ou um atendimento for concluído, o seu ERP/TMS chama o endereço abaixo e o cliente recebe na hora a pergunta "Como você avalia a entrega?". Notas 1 e 2 viram tarefa no Plano de Ação.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <div class="flex flex-col gap-1">
+                <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">Endereço (POST)</label>
+                <div class="flex gap-2">
+                  <InputText :value="integracaoCsat.url" readonly class="custom-input !w-full !text-[11px] !font-mono" />
+                  <Button icon="pi pi-copy" @click="copiarTexto(integracaoCsat.url, 'Endereço copiado')" class="!bg-slate-100 dark:!bg-slate-800 !text-slate-600 dark:!text-slate-300 !border-none !rounded-xl !w-11 !h-11 shrink-0" />
+                </div>
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">Chave (cabeçalho X-Api-Key)</label>
+                <div class="flex gap-2">
+                  <InputText :value="mostrarChaveApi ? integracaoCsat.chave : '••••••••••••••••••••••••'" readonly class="custom-input !w-full !text-[11px] !font-mono" />
+                  <Button :icon="mostrarChaveApi ? 'pi pi-eye-slash' : 'pi pi-eye'" @click="mostrarChaveApi = !mostrarChaveApi" class="!bg-slate-100 dark:!bg-slate-800 !text-slate-600 dark:!text-slate-300 !border-none !rounded-xl !w-11 !h-11 shrink-0" v-tooltip.top="'Mostrar/ocultar'" />
+                  <Button icon="pi pi-copy" @click="copiarTexto(integracaoCsat.chave, 'Chave copiada')" class="!bg-slate-100 dark:!bg-slate-800 !text-slate-600 dark:!text-slate-300 !border-none !rounded-xl !w-11 !h-11 shrink-0" />
+                </div>
+              </div>
+            </div>
+            <details class="text-xs">
+              <summary class="cursor-pointer text-orange-500 font-bold">Ver exemplo para o seu desenvolvedor</summary>
+              <pre class="mt-2 p-3 bg-slate-950 text-slate-200 rounded-xl overflow-x-auto text-[11px] leading-relaxed">{{ exemploCurlCsat }}</pre>
+              <p class="text-[11px] text-slate-500 mt-2">Campos: <b>email</b> (obrigatório), nome, referencia (nº do pedido/NF), assunto (o que será avaliado). A resposta traz o <b>link</b> da pesquisa, que também pode ser enviado por WhatsApp.</p>
+            </details>
+
+            <div class="mt-5 pt-5 border-t border-slate-100 dark:border-slate-800">
+              <p class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Enviar uma pesquisa agora (teste ou avulsa)</p>
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <InputText v-model="csatManual.email" placeholder="E-mail do cliente" class="custom-input !text-[11px]" />
+                <InputText v-model="csatManual.nome" placeholder="Nome (opcional)" class="custom-input !text-[11px]" />
+                <InputText v-model="csatManual.referencia" placeholder="Pedido/NF (opcional)" class="custom-input !text-[11px]" />
+                <InputText v-model="csatManual.assunto" placeholder="Ex.: a entrega do pedido 1234" class="custom-input !text-[11px]" />
+              </div>
+              <div class="flex flex-wrap items-center gap-3 mt-3">
+                <Button label="Enviar pesquisa" icon="pi pi-send" :loading="enviandoCsat" @click="enviarCsatManual" class="!bg-orange-500 !border-none !rounded-xl !text-xs !font-bold" />
+                <a v-if="ultimoLinkCsat" :href="ultimoLinkCsat" target="_blank" class="text-[11px] text-orange-500 underline break-all">{{ ultimoLinkCsat }}</a>
+              </div>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
             <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between relative overflow-hidden group mb-8 shadow-lg">
@@ -1945,7 +2079,7 @@ onMounted(() => {
                   </div>
                   <div>
                     <h4 class="text-sm font-black text-white">Webhook de Recepção</h4>
-                    <p class="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Ponto de Entrada (Fillout)</p>
+                    <p class="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Só para formulário externo (Fillout)</p>
                   </div>
                 </div>
                 

@@ -419,7 +419,7 @@ const passosGuia = computed(() => {
   const p = onboarding.value?.passos || {};
   return [
     { chave: 'clientes', titulo: 'Cadastre seus clientes', texto: 'Importe uma planilha com seus clientes e contatos (ou cadastre um a um).', rota: '/importacao', botao: 'Importar planilha', feito: p.clientes },
-    { chave: 'formulario', titulo: 'Informe o link do seu formulário', texto: 'Cole o link do formulário de pesquisa (ex.: Fillout) e, no Fillout, o link de recebimento de respostas.', rota: '/configuracoes', botao: 'Abrir configurações', feito: p.formulario },
+    { chave: 'formulario', titulo: 'Confira a pergunta da pesquisa', texto: 'O formulário da Rakiti já vem pronto. Se quiser, ajuste a pergunta em Configurações > Pesquisa.', rota: '/configuracoes', botao: 'Abrir configurações', feito: p.formulario },
     { chave: 'envio', titulo: 'Envie a primeira pesquisa', texto: 'Ative o envio de e-mails e dispare a pesquisa para alguns clientes.', rota: '/audiencia', botao: 'Ir para Envios', feito: p.envio },
     { chave: 'respostas', titulo: 'Receba as primeiras respostas', texto: 'Assim que alguém responder, os números aparecem aqui e as notas baixas viram Planos de Ação.', rota: '/respostas', botao: 'Ver respostas', feito: p.respostas },
   ];
@@ -430,8 +430,18 @@ const carregarOnboarding = async () => {
   try { const res = await api.get('/onboarding'); onboarding.value = res.data; } catch (e) { console.error(e); }
 };
 
+// ==========================================
+// 😊 SATISFAÇÃO (CSAT) — pesquisas após entrega/atendimento
+// ==========================================
+const csat = ref(null);
+const ROSTO_CSAT = { 1: '😡', 2: '🙁', 3: '😐', 4: '🙂', 5: '😍' };
+const carregarCsat = async () => {
+  try { const res = await api.get('/csat/resumo', { params: { dias: 90 } }); csat.value = res.data; } catch (e) { console.error(e); }
+};
+
 onMounted(() => {
   carregarOnboarding();
+  carregarCsat();
   carregarCompanhias(); 
   carregarDashboard();
   gerarInsightIA(false); 
@@ -555,6 +565,32 @@ onMounted(() => {
               {{ passo.botao }} <i class="pi pi-arrow-right text-[9px] ml-1"></i>
             </button>
             <span v-else class="text-[10px] font-black uppercase tracking-widest text-emerald-600">Concluído</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="csat && csat.total > 0" class="bg-white dark:bg-slate-900/80 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none p-6 md:p-8">
+        <div class="flex flex-col lg:flex-row gap-6">
+          <div class="lg:w-72 shrink-0">
+            <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Satisfação (CSAT)</span>
+            <span class="text-[8px] font-bold text-slate-400/70 uppercase tracking-widest">Últimos 90 dias · após entregas e atendimentos</span>
+            <div class="flex items-end gap-3 mt-4">
+              <span class="text-5xl font-black text-slate-900 dark:text-white">{{ csat.satisfeitos_pct.toLocaleString('pt-BR') }}%</span>
+              <span class="text-xs text-slate-500 mb-2">satisfeitos<br/>(nota 4 ou 5)</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">Média {{ csat.media.toLocaleString('pt-BR') }} de 5 · {{ csat.total }} {{ csat.total === 1 ? 'resposta' : 'respostas' }}</p>
+          </div>
+          <div class="flex-1 min-w-0">
+            <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-3">Últimas avaliações</span>
+            <ul class="divide-y divide-slate-100 dark:divide-slate-800">
+              <li v-for="r in csat.ultimas.slice(0, 5)" :key="r.id" class="py-2 flex items-start gap-3">
+                <span class="text-2xl leading-none">{{ ROSTO_CSAT[r.nota] }}</span>
+                <div class="min-w-0">
+                  <p class="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{{ r.cliente }} <span v-if="r.referencia" class="font-normal text-slate-400">· {{ r.referencia }}</span></p>
+                  <p class="text-xs text-slate-500 truncate">{{ r.comentario || 'Sem comentário' }}</p>
+                </div>
+              </li>
+            </ul>
           </div>
         </div>
       </div>

@@ -56,7 +56,7 @@ const arquivoSelecionado = ref(null);
 // ==========================================
 // Esconde a sidebar/menu em páginas específicas
 const exibirLayout = computed(() => {
-  const rotasSemMenu = ['Login', 'ForgotPassword', 'redefinir-senha'];
+  const rotasSemMenu = ['Login', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica'];
   return !rotasSemMenu.includes(route.name);
 });
 
@@ -118,7 +118,7 @@ const logout = () => {
 };
 
 const exibirBotaoChat = computed(() => {
-  const rotasPublicas = ['Login', 'ResetPassword', 'RecuperarSenha'];
+  const rotasPublicas = ['Login', 'ResetPassword', 'RecuperarSenha', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica'];
   return !rotasPublicas.includes(route.name);
 });
 
@@ -294,6 +294,7 @@ const clientesRecentes = ref([]);
 const tagsCarregando = ref(true);
 
 const carregarAtalhosChat = async () => {
+  if (!sessionStorage.getItem('token')) { tagsCarregando.value = false; return; }
   tagsCarregando.value = true;
   try {
     const response = await api.get('/chat/clientes-recentes');
@@ -630,7 +631,7 @@ onMounted(() => {
         </div>
       </header>
 
-      <main class="flex-1 overflow-y-auto relative p-6 md:p-8">
+      <main class="flex-1 overflow-y-auto relative" :class="route.name === 'PesquisaPublica' ? '' : 'p-6 md:p-8'">
          <router-view />
       </main>
 

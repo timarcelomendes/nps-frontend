@@ -27,6 +27,14 @@ const routes = [
     meta: { requiresAuth: false }
   },
   
+  {
+    // Formulário de pesquisa que o cliente final responde (link do e-mail/WhatsApp)
+    path: '/r/:token',
+    name: 'PesquisaPublica',
+    component: () => import('../views/PesquisaPublicaView.vue'),
+    meta: { requiresAuth: false }
+  },
+
   // ==========================================
   // 🔒 ROTAS PRIVADAS (Core da Aplicação)
   // ==========================================
