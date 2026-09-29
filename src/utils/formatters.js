@@ -23,3 +23,30 @@ export const formatarDataLocal = (dataString) => {
     minute: '2-digit'
   });
 };
+/** Conta do usuário logado (lida do token), usada para separar caches por conta. */
+export const contaAtualId = () => {
+  try {
+    const token = sessionStorage.getItem('token') || '';
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return payload.conta_id ?? null;
+  } catch (e) {
+    return null;
+  }
+};
+
+/** "Hoje", "Ontem", "Há 5 dias" */
+export const diasAtras = (dataString) => {
+  if (!dataString) return '';
+  const d = new Date(String(dataString).replace(' ', 'T'));
+  const dias = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (dias <= 0) return 'hoje';
+  if (dias === 1) return 'ontem';
+  return `há ${dias} dias`;
+};
+
+/** Data AAAA-MM-DD no fuso local */
+export const dataISO = (data) => {
+  const d = new Date(data);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().split('T')[0];
+};
