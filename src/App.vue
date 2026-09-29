@@ -269,8 +269,8 @@ const enviarMensagem = async () => {
         }
       }
     }
-  } catch (error) {Intelligence
-    historicoChat.value[iaIndex].content = "⚠️ Erro de conexão com o Gauge AI.";
+  } catch (error) {
+    historicoChat.value[iaIndex].content = "⚠️ Erro de conexão com a Rakiti AI.";
   } finally {
     chatCarregando.value = false;
     scrollToBottom();
@@ -326,9 +326,9 @@ onMounted(() => {
         <div v-if="sidebarExpandida" class="flex flex-col items-start relative pl-4 w-full animate-fadein">
            <div class="absolute top-0 bottom-0 left-0 w-1 bg-orange-600 dark:bg-orange-500 rounded-full"></div>
            <h1 class="text-xl font-black text-slate-900 dark:text-white tracking-tighter leading-none whitespace-nowrap">
-               NPS<span class="font-light text-slate-500 dark:text-slate-500">Intelligence</span>
+               rakiti<span class="text-orange-600 dark:text-orange-500">.</span>
            </h1>
-           <p class="text-[9px] text-indigo-400 font-bold uppercase tracking-[0.1em] mt-1.5 pl-px whitespace-nowrap">Gauge &bull; Stefanini Group</p>
+           <p class="text-[9px] text-indigo-400 font-bold uppercase tracking-[0.1em] mt-1.5 pl-px whitespace-nowrap">NPS &bull; CSAT &bull; Retenção</p>
         </div>
 
         <div v-else class="flex items-center justify-center w-full animate-fadein">
@@ -477,9 +477,9 @@ onMounted(() => {
         <div v-if="sidebarExpandida" class="flex flex-col items-start relative pl-4 w-full animate-fadein">
            <div class="absolute top-0 bottom-0 left-0 w-1 bg-orange-600 dark:bg-orange-500 rounded-full"></div>
            <h1 class="text-xl font-black text-slate-900 dark:text-white tracking-tighter leading-none whitespace-nowrap">
-               NPS<span class="font-light text-slate-500 dark:text-slate-500">Intelligence</span>
+               rakiti<span class="text-orange-600 dark:text-orange-500">.</span>
            </h1>
-           <p class="text-[9px] text-indigo-400 font-bold uppercase tracking-[0.1em] mt-1.5 pl-px whitespace-nowrap">Gauge &bull; Stefanini Group</p>
+           <p class="text-[9px] text-indigo-400 font-bold uppercase tracking-[0.1em] mt-1.5 pl-px whitespace-nowrap">NPS &bull; CSAT &bull; Retenção</p>
         </div>
 
         <div v-else class="flex items-center justify-center w-full animate-fadein">
@@ -657,7 +657,7 @@ onMounted(() => {
           <i class="pi pi-sparkles text-white text-lg"></i>
         </div>
         <div>
-          <h2 class="font-bold text-lg leading-tight">Gauge Intelligence</h2>
+          <h2 class="font-bold text-lg leading-tight">Rakiti AI</h2>
           <span class="text-xs text-emerald-400 font-medium animate-pulse">● Online</span>
         </div>
       </div>
@@ -683,7 +683,7 @@ onMounted(() => {
 
           <div class="flex-1 overflow-hidden">
             <div class="text-xs font-bold mb-1" :class="msg.role === 'user' ? 'text-indigo-400' : 'text-fuchsia-400'">
-              {{ msg.role === 'user' ? 'Você' : 'Gauge Intelligence' }}
+              {{ msg.role === 'user' ? 'Você' : 'Rakiti AI' }}
             </div>
             
             <div 
@@ -760,7 +760,7 @@ onMounted(() => {
             <i class="pi pi-send text-sm"></i>
           </button>
         </form>
-        <p class="text-[10px] text-slate-500 mt-2 text-center">Gauge AI pode processar dados históricos de NPS e Kanban.</p>
+        <p class="text-[10px] text-slate-500 mt-2 text-center">A Rakiti AI pode processar dados históricos de NPS e Kanban.</p>
       </div>
     </div>
   </Sidebar>

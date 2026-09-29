@@ -914,7 +914,7 @@ onMounted(() => {
                 <div class="flex-1 w-full">
                     <div class="flex flex-col md:flex-row justify-between items-start mb-8 gap-4">
                         <div>
-                            <h2 class="text-xl font-black text-white italic tracking-tighter">Gauge AI: Síntese Preditiva</h2>
+                            <h2 class="text-xl font-black text-white italic tracking-tighter">Rakiti AI: Síntese Preditiva</h2>
                             <p class="text-[10px] font-bold text-indigo-300 uppercase tracking-widest mt-1">Processamento de Linguagem Natural</p>
                         </div>
                         

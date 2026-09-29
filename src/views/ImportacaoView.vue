@@ -52,11 +52,11 @@ const baixarTemplate = () => {
 
   if (tipoImportacao.value === 'clientes') {
     cabecalhos = ['nome', 'email', 'empresa', 'perfil_decisor', 'segmento', 'telefone', 'cargo', 'valor_contrato', 'ativo', 'ultimo_envio'];
-    exemplo = ['Marcelo Mendes', 'marcelo@empresa.com', 'Stefanini', 'Decisor', 'Tecnologia', '+351 912...', 'Product Manager', '50000', 'True', '2026-01-01'];
+    exemplo = ['Marcelo Mendes', 'marcelo@empresa.com', 'Distribuidora Exemplo', 'Decisor', 'Tecnologia', '+55 11 99999-0000', 'Product Manager', '50000', 'True', '2026-01-01'];
     nomeArquivo = 'template_clientes_nps.csv';
   } else {
     cabecalhos = ['email', 'empresa', 'data_resposta', 'nota', 'comentario', 'perfil_decisor', 'segmento'];
-    exemplo = ['marcelo@empresa.com', 'Stefanini', '2026-03-15', '10', 'Excelente serviço!', 'Decisor', 'Tecnologia'];
+    exemplo = ['marcelo@empresa.com', 'Distribuidora Exemplo', '2026-03-15', '10', 'Excelente serviço!', 'Decisor', 'Tecnologia'];
     nomeArquivo = 'template_respostas_nps.csv';
   }
 

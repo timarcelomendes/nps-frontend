@@ -430,7 +430,26 @@ const integracoesConfig = ref({
   webhook_tecnico: '' 
 });
 
-const webhookFilloutURL = computed(() => `${config.value.base_url_frontend}/api/webhook/fillout`);
+// URL do webhook com o token secreto da conta (vem da API)
+const webhookFilloutURL = ref('');
+const dadosConta = ref({ nome: '', plano: '' });
+const carregarConta = async () => {
+  try {
+    const res = await api.get('/conta');
+    webhookFilloutURL.value = res.data.webhook_url || '';
+    dadosConta.value = { nome: res.data.nome, plano: res.data.plano };
+  } catch (error) { console.error(error); }
+};
+const regenerarWebhook = async () => {
+  if (!confirm('Gerar um novo link? O link atual para de funcionar e será preciso atualizar no Fillout.')) return;
+  try {
+    const res = await api.post('/conta/webhook/regenerar');
+    webhookFilloutURL.value = res.data.webhook_url;
+    toast.add({ severity: 'success', summary: 'Novo link gerado', detail: 'Atualize o webhook no Fillout.', life: 5000 });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.detail || 'Não foi possível gerar o link.', life: 5000 });
+  }
+};
 
 const copiarWebhookFillout = async () => {
   try {
@@ -479,7 +498,8 @@ const testarWebhookRecebimento = async () => {
   testingIncoming.value = true;
   try {
     // Faz um GET simples à nossa própria rota para ver se ela responde
-    const res = await api.get('/webhooks/fillout');
+    const token = new URL(webhookFilloutURL.value).searchParams.get('token');
+    const res = await api.get('/webhook/fillout', { params: { token } });
     
     if (res.data && res.data.status === 'success') {
       toast.add({ 
@@ -561,6 +581,7 @@ const regrasConfig = ref({
   sla_neutro_dias: 5, 
   sla_promotor_dias: 7,
   recorrencia_dias: 90,
+  survey_url: '',
   fillout_campos: ['clienteId', 'email', 'nome', 'empresa', 'empresa_id'],
   email_template_html: '', 
   email_agradecimento_promotor: '',
@@ -795,7 +816,7 @@ const salvarRegras = async () => {
     toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Regras de negócio atualizadas!', life: 3000 });
   } catch (error) {
     console.error("Erro ao salvar regras:", error);
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao guardar configurações.', life: 5000 });
+    toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.detail || 'Falha ao guardar configurações.', life: 5000 });
   } finally { 
     savingRegras.value = false; 
   }
@@ -1153,7 +1174,37 @@ const buscarNoTemplate = (secao) => {
   }
 };
 
+// ==========================================
+// 🏢 ADMINISTRAÇÃO DA PLATAFORMA (somente super admin)
+// ==========================================
+const ehSuperAdmin = sessionStorage.getItem('usuario_superadmin') === 'true';
+const contasPlataforma = ref([]);
+const novaConta = ref({ nome: '', admin_nome: '', admin_email: '', admin_senha: '', dominios: '' });
+const criandoConta = ref(false);
+const carregarContasPlataforma = async () => {
+  if (!ehSuperAdmin) return;
+  try {
+    const res = await api.get('/superadmin/contas');
+    contasPlataforma.value = res.data || [];
+  } catch (error) { console.error(error); }
+};
+const criarContaPlataforma = async () => {
+  criandoConta.value = true;
+  try {
+    const res = await api.post('/superadmin/contas', novaConta.value);
+    toast.add({ severity: 'success', summary: 'Conta criada', detail: res.data.message, life: 5000 });
+    novaConta.value = { nome: '', admin_nome: '', admin_email: '', admin_senha: '', dominios: '' };
+    carregarContasPlataforma();
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.detail || 'Não foi possível criar a conta.', life: 6000 });
+  } finally {
+    criandoConta.value = false;
+  }
+};
+
 onMounted(() => {
+  carregarContasPlataforma();
+  carregarConta();
   carregarDadosConfig();
   carregarConfiguracoesAI();
   carregarUtilizadores();
@@ -1261,86 +1312,39 @@ onMounted(() => {
           </div>
           
           <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 pb-6 border-b border-slate-50 dark:border-slate-800 gap-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 pb-6 border-b border-slate-50 dark:border-slate-800 gap-4">
               <div>
-                <h3 class="text-sm font-black uppercase text-slate-800 dark:text-white">Microsoft Graph API</h3>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Estado da Conexão em Tempo Real</p>
+                <h3 class="text-sm font-black uppercase text-slate-800 dark:text-white">Envio de E-mails</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Serviço gerenciado pela Rakiti</p>
               </div>
-              <Tag :value="config.refresh_token ? 'API CONECTADA' : 'AGUARDANDO AUTORIZAÇÃO'" 
-                  :severity="config.refresh_token ? 'success' : 'warning'" 
+              <Tag :value="config.provedor === 'resend' ? 'ATIVO' : 'NÃO CONFIGURADO'"
+                  :severity="config.provedor === 'resend' ? 'success' : 'warning'"
                   class="!text-[9px] !px-4 !py-2 !rounded-xl !font-black shadow-sm tracking-widest" />
             </div>
 
             <div class="space-y-6">
+              <p class="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                Os convites de pesquisa, lembretes e avisos são enviados pela própria plataforma. Não é preciso configurar servidor de e-mail nem conta Microsoft.
+              </p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="flex flex-col gap-2">
-                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Tenant ID</label>
-                  <InputText v-model="config.tenant_id" class="custom-input" />
+                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Remetente</label>
+                  <InputText :value="config.remetente_nome ? `${config.remetente_nome} <${config.remetente_email}>` : (config.remetente_email || '—')" readonly class="custom-input !bg-slate-50 dark:!bg-slate-950 !text-[12px]" />
                 </div>
                 <div class="flex flex-col gap-2">
-                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Client ID</label>
-                  <InputText v-model="config.client_id" class="custom-input" />
+                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Provedor</label>
+                  <InputText :value="config.provedor === 'resend' ? 'Resend' : 'Não configurado (fale com o suporte)'" readonly class="custom-input !bg-slate-50 dark:!bg-slate-950 !text-[12px]" />
                 </div>
               </div>
 
-              <div class="flex flex-col gap-2">
-                <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Client Secret</label>
-                <Password v-model="config.client_secret" toggleMask :feedback="false" inputClass="custom-input w-full" class="w-full" />
-                <p v-if="config.client_secret" class="text-[9px] text-emerald-500 font-bold ml-1 uppercase tracking-widest">
-                  <i class="pi pi-lock"></i> Credencial encriptada no banco.
-                </p>
-              </div>
-
-              <div class="flex flex-col gap-2">
-                <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">E-mail Remetente Autenticado</label>
-                <InputText v-model="config.email_remetente" class="custom-input !text-[12px]" />
-              </div>
-
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-8 border-t border-slate-50 dark:border-slate-800">
-                <Button label="1. Guardar no Banco" icon="pi pi-database" @click="salvarConfigEmail" :loading="loading" class="w-full !bg-slate-900 dark:!bg-white dark:!text-slate-900 !text-white !border-none !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !py-4 shadow-xl hover:scale-[1.02] transition-transform" />
-                <Button label="2. Autorizar Microsoft" icon="pi pi-microsoft" @click="autorizarMicrosoft" :loading="verificandoConexao" class="w-full !bg-transparent !border-2 !border-slate-200 dark:!border-slate-700 !text-slate-700 dark:!text-slate-300 !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !py-4 hover:!bg-slate-50 dark:hover:!bg-slate-800 hover:scale-[1.02] transition-all" />
-                
-                <div class="sm:col-span-2">
-                  <Button 
-                    label="Enviar E-mail de Teste" 
-                    icon="pi pi-send" 
-                    @click="enviarTeste" 
-                    :loading="enviandoTeste"
-                    class="w-full !bg-transparent !border-2 !border-orange-500/20 !text-orange-500 !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !py-4 hover:!bg-orange-50 dark:hover:!bg-orange-500/10 hover:scale-[1.01] transition-all mt-2" 
-                    />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm mt-8">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-6 border-b border-slate-50 dark:border-slate-800 gap-4">
-              <div>
-                <h3 class="text-sm font-black uppercase text-slate-800 dark:text-white flex items-center gap-2">
-                  <i class="pi pi-users text-indigo-500"></i> Single Sign-On (SSO)
-                </h3>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Login com Microsoft Entra ID</p>
-              </div>
-              <div class="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 rounded-xl border border-slate-100 dark:border-slate-700">
-                <InputSwitch v-model="config.sso_microsoft_ativo" @change="salvarConfigEmail" />
-                <span class="text-[10px] font-black uppercase tracking-widest" :class="config.sso_microsoft_ativo ? 'text-indigo-500' : 'text-slate-400'">
-                  {{ config.sso_microsoft_ativo ? 'SSO ATIVADO' : 'SSO DESATIVADO' }}
-                </span>
-              </div>
-            </div>
-
-            <div class="space-y-4">
-              <p class="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                Como está a utilizar a mesma aplicação do Azure, as credenciais (Tenant ID e Client ID) já estão configuradas no bloco acima.
-                Para que o botão de "Login com a Microsoft" funcione no ecrã inicial, garanta que adicionou o seguinte endereço como <strong>SPA (Aplicativo de Página Única)</strong> nas URIs de Redirecionamento do Azure:
-              </p>
-
-              <div class="flex flex-col gap-2 pt-2">
-                <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">URI de Redirecionamento SPA (Copie e cole no Azure)</label>
-                <div class="flex items-center gap-2">
-                  <InputText :value="config.base_url_frontend + '/login'" readonly class="custom-input !w-full !bg-slate-50 dark:!bg-slate-950 !text-[11px] !font-mono text-slate-500" />
-                  <Button icon="pi pi-copy" @click="copiarUrl(config.base_url_frontend + '/login')" class="!bg-slate-800 hover:!bg-slate-700 !text-white !border-none !rounded-xl !w-11 !h-11 shrink-0 shadow-md" v-tooltip.top="'Copiar URI'" />
-                </div>
+              <div class="pt-6 border-t border-slate-50 dark:border-slate-800">
+                <Button 
+                  label="Enviar E-mail de Teste" 
+                  icon="pi pi-send" 
+                  @click="enviarTeste" 
+                  :loading="enviandoTeste"
+                  class="w-full !bg-transparent !border-2 !border-orange-500/20 !text-orange-500 !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !py-4 hover:!bg-orange-50 dark:hover:!bg-orange-500/10 hover:scale-[1.01] transition-all" 
+                  />
               </div>
             </div>
           </div>
@@ -1802,7 +1806,7 @@ onMounted(() => {
                 </div>
                 
                 <p class="text-xs text-slate-400 leading-relaxed mb-6">
-                  Este é o endereço oficial da sua API. Cole-o na plataforma de formulários para que as respostas cheguem automaticamente ao seu painel.
+                  Cole este endereço no webhook do seu formulário (Fillout) para que as respostas cheguem automaticamente ao painel. Ele contém uma chave secreta da sua conta: não compartilhe.
                 </p>
                 
                 <div class="flex flex-col gap-2">
@@ -1831,6 +1835,12 @@ onMounted(() => {
                       class="!bg-emerald-500/20 !text-emerald-400 !border-none !rounded-xl !w-11 !h-11 hover:!bg-emerald-500 hover:!text-white transition-all shrink-0" 
                       v-tooltip.top="'Testar Status da Escuta'" 
                     />
+                    <Button 
+                      icon="pi pi-refresh" 
+                      @click="regenerarWebhook" 
+                      class="!bg-slate-800 !text-slate-300 !border-none !rounded-xl !w-11 !h-11 hover:!bg-rose-600 hover:!text-white transition-all shrink-0" 
+                      v-tooltip.top="'Gerar novo link (invalida o atual)'" 
+                    />
                   </div>
                 </div>
               </div>
@@ -1855,7 +1865,7 @@ onMounted(() => {
                     </label>
                     <InputText 
                       v-model="integracoesConfig.webhook_global" 
-                      placeholder="https://gauge-team.webhook.office.com/..." 
+                      placeholder="https://suaempresa.webhook.office.com/..." 
                       class="custom-input !w-full !bg-slate-50 dark:!bg-slate-800 !text-[11px]" 
                     />
                   </div>
@@ -1866,7 +1876,7 @@ onMounted(() => {
                     </label>
                     <InputText 
                       v-model="integracoesConfig.webhook_tecnico" 
-                      placeholder="https://gauge-team.webhook.office.com/..." 
+                      placeholder="https://suaempresa.webhook.office.com/..." 
                       class="custom-input !w-full !bg-slate-50 dark:!bg-slate-800 !text-[11px]" 
                     />
                     <p class="text-[9px] text-slate-400 font-medium ml-1 mt-0.5 leading-relaxed">
@@ -1989,6 +1999,15 @@ onMounted(() => {
                       v-tooltip.top="'Tempo de carência (intervalo mínimo) para disparar nova pesquisa ao mesmo cliente.'" 
                     />
                   </div>
+                  </div>
+
+                  <div class="flex flex-col gap-2 pt-2">
+                    <label class="text-[9px] font-black uppercase tracking-widest text-orange-500 ml-1 flex items-center justify-between">
+                      Link do Formulário de Pesquisa
+                      <i class="pi pi-info-circle text-slate-400" v-tooltip.top="'Endereço do seu formulário (ex.: Fillout). Os convites levam o cliente para este link. Sem ele, nenhum convite é enviado.'"></i>
+                    </label>
+                    <InputText v-model="regrasConfig.survey_url" placeholder="https://forms.fillout.com/t/SEU_FORMULARIO" class="custom-input !bg-white dark:!bg-slate-900 !text-[11px] !font-mono shadow-sm !rounded-xl" :class="{'!border-rose-400': !regrasConfig.survey_url}" />
+                    <p v-if="!regrasConfig.survey_url" class="text-[9px] text-rose-500 font-bold ml-1 uppercase tracking-widest">Obrigatório para enviar pesquisas</p>
                   </div>
 
                   <div class="flex flex-col gap-2 pt-2">
@@ -2328,6 +2347,57 @@ onMounted(() => {
 
           </div>
 
+        </div>
+      </TabPanel>
+
+      <TabPanel v-if="ehSuperAdmin">
+        <template #header>
+          <div class="flex items-center gap-2 px-2">
+            <i class="pi pi-building text-slate-400"></i> <span class="font-bold">Plataforma</span>
+          </div>
+        </template>
+        <div class="space-y-8 animate-fadein py-4">
+          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+            <h3 class="text-sm font-black uppercase text-slate-800 dark:text-white mb-1">Nova empresa cliente</h3>
+            <p class="text-[11px] text-slate-400 mb-6">Cria uma conta isolada (dados separados) com o primeiro usuário Admin.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="flex flex-col gap-2">
+                <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Nome da empresa</label>
+                <InputText v-model="novaConta.nome" placeholder="Distribuidora Exemplo" class="custom-input" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Domínios permitidos</label>
+                <InputText v-model="novaConta.dominios" placeholder="exemplo.com.br" class="custom-input" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Nome do Admin</label>
+                <InputText v-model="novaConta.admin_nome" class="custom-input" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">E-mail do Admin</label>
+                <InputText v-model="novaConta.admin_email" placeholder="admin@exemplo.com.br" class="custom-input" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Senha inicial</label>
+                <Password v-model="novaConta.admin_senha" toggleMask :feedback="false" inputClass="custom-input w-full" class="w-full" />
+              </div>
+              <div class="flex items-end">
+                <Button label="Criar conta" icon="pi pi-plus" :loading="criandoConta" @click="criarContaPlataforma" class="w-full !bg-orange-500 !border-none !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !py-4" />
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+            <h3 class="text-sm font-black uppercase text-slate-800 dark:text-white mb-6">Contas na plataforma</h3>
+            <DataTable :value="contasPlataforma" class="text-sm" stripedRows>
+              <Column field="id" header="#" />
+              <Column field="nome" header="Empresa" />
+              <Column field="plano" header="Plano" />
+              <Column field="usuarios" header="Usuários" />
+              <Column field="clientes" header="Clientes" />
+              <Column field="respostas" header="Respostas" />
+            </DataTable>
+          </div>
         </div>
       </TabPanel>
     </TabView>

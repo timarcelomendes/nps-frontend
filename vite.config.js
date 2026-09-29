@@ -14,9 +14,9 @@ export default defineConfig({
       registerType: 'autoUpdate', // Atualiza o app no telemóvel sozinho
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'NPS Command Center',
-        short_name: 'NPS Center',
-        description: 'Painel Executivo de Customer Experience e NPS',
+        name: 'Rakiti',
+        short_name: 'Rakiti',
+        description: 'NPS, CSAT e retenção de clientes',
         theme_color: '#0f172a', // Cor principal (slate-900 para combinar com o Dark Mode)
         background_color: '#0f172a',
         display: 'standalone', // Faz abrir em ecrã inteiro parecendo um App nativo

@@ -241,7 +241,7 @@ onMounted(() => {
       <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-4 border-b border-slate-200/60 dark:border-slate-800/60">
         <div>
           <h1 class="text-4xl lg:text-5xl font-black tracking-tighter italic text-slate-900 dark:text-white">
-            NPS <span class="text-indigo-500">Intelligence</span>
+            Relatórios <span class="text-indigo-500">Rakiti</span>
           </h1>
           <p class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mt-2">Relatórios Executivos e Visão de Jornada</p>
           

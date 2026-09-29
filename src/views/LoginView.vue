@@ -67,7 +67,7 @@
       
       <div class="mt-6 flex flex-col gap-6">
         <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-          Bem-vindo à autenticação do <strong>NPS Intelligence</strong>. Aqui você valida sua identidade para acessar a gestão de clientes.
+          Bem-vindo à autenticação do <strong>Rakiti</strong>. Aqui você valida sua identidade para acessar a gestão de clientes.
         </p>
 
         <div class="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -75,7 +75,7 @@
             <i class="pi pi-microsoft text-indigo-500"></i> Acesso via Microsoft
           </h3>
           <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Se a sua conta corporativa (Stefanini Group) já estiver configurada, clique em <strong>"Entrar com Microsoft"</strong> para acessar sem precisar decorar novas senhas.
+            Se a sua conta corporativa Microsoft já estiver configurada, clique em <strong>"Entrar com Microsoft"</strong> para acessar sem precisar decorar novas senhas.
           </p>
         </div>
 
@@ -107,21 +107,18 @@
           <div class="flex flex-col items-start relative">
              <div class="absolute top-0 bottom-0 left-[-15px] w-1 bg-orange-600 dark:bg-orange-500 rounded-full"></div>
              <h1 class="text-4xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
-               NPS<span class="font-light text-slate-500 dark:text-slate-500">Intelligence</span>
+               rakiti<span class="text-orange-600 dark:text-orange-500">.</span>
              </h1>
-             <p class="text-[11px] text-indigo-400 font-bold uppercase tracking-[0.2em] mt-2 pl-px">Gauge &bull; Stefanini Group</p>
+             <p class="text-[11px] text-indigo-400 font-bold uppercase tracking-[0.2em] mt-2 pl-px">NPS &bull; CSAT &bull; Retenção</p>
           </div>
         </div>
         
         <p class="text-lg text-slate-600 dark:text-slate-400 leading-relaxed font-normal">
-          A plataforma Gauge para gestão da <strong class="text-orange-600 dark:text-orange-500 font-bold">experiência do cliente</strong>. Centralize respostas, automatize disparos em background e impulsione a lealdade com inteligência de dados.
+          A plataforma Rakiti para gestão da <strong class="text-orange-600 dark:text-orange-500 font-bold">experiência do cliente</strong>. Centralize respostas, automatize disparos em background e impulsione a lealdade com inteligência de dados.
         </p>
         
         <div class="flex items-center gap-6 mt-4">
-          <div class="flex -space-x-3">
-            <img v-for="n in 4" :key="n" :src="`https://i.pravatar.cc/40?u=${n+10}`" class="w-9 h-9 rounded-full border-2 border-slate-50 dark:border-slate-950"/>
-          </div>
-          <p class="text-sm text-slate-500 dark:text-slate-500 font-medium">Equipes Stefanini utilizam esta plataforma diariamente.</p>
+          <p class="text-sm text-slate-500 dark:text-slate-500 font-medium">Saiba quem está insatisfeito antes de perder o cliente.</p>
         </div>
       </div>
 
@@ -134,7 +131,7 @@
           <div class="md:hidden flex flex-col items-start relative ml-px">
              <div class="absolute top-0 bottom-0 left-[-12px] w-1 bg-orange-600 dark:bg-orange-500 rounded-full"></div>
              <h2 class="text-2xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">
-               NPS<span class="font-light text-slate-500 dark:text-slate-500">Intel.</span>
+               rakiti<span class="text-orange-600 dark:text-orange-500">.</span>
              </h2>
           </div>
           <h2 class="hidden md:block text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
@@ -169,7 +166,7 @@
                 type="email" 
                 name="username"
                 autocomplete="username"
-                placeholder="seu.nome@stefanini.com" 
+                placeholder="seu@email.com.br" 
                 class="w-full custom-input" 
                 :class="{'!border-rose-500 ring-2 ring-rose-500/20': erros.email || erros.geral}" 
                 @input="limparErroDe('email')" 
@@ -181,7 +178,7 @@
                 type="email" 
                 name="email"
                 autocomplete="email"
-                placeholder="seu.email@stefanini.com" 
+                placeholder="seu@email.com.br" 
                 class="w-full custom-input" 
                 :class="{'!border-rose-500 ring-2 ring-rose-500/20': erros.email}" 
                 @input="limparErroDe('email')" />
@@ -294,7 +291,7 @@
     </div>
     
     <div class="fixed bottom-4 left-4 z-10 transition-colors duration-500">
-      <p class="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest">Gauge © {{ new Date().getFullYear() }} • Stefanini Group</p>
+      <p class="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest">Rakiti © {{ new Date().getFullYear() }}</p>
     </div>
   </div>
 </template>
@@ -373,6 +370,7 @@ const armazenarSessao = (dados) => {
     sessionStorage.setItem('usuario_cargo', dados.cargo || 'Analista');
     sessionStorage.setItem('usuario_email', dados.email || '');
     sessionStorage.setItem('usuario_avatar', dados.avatar_url || '');
+    sessionStorage.setItem('usuario_superadmin', dados.superadmin ? 'true' : 'false');
 
     const listaPermissoes = Array.isArray(dados.permissoes) ? dados.permissoes : [];
     sessionStorage.setItem('usuario_permissoes', JSON.stringify(listaPermissoes));
