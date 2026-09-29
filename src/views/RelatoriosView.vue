@@ -110,7 +110,7 @@ const fetchGraficos = async () => {
       ]
     };
 
-    // 2. Stacked Bar (Safra)
+    // 2. Stacked Bar (Tempo de Casa)
     dataStackedBar.value = {
       labels: resSafra.data.labels,
       datasets: [
@@ -140,7 +140,7 @@ const fetchGraficos = async () => {
 };
 
 // ==========================================
-// ⚙️ OUTRAS ABAS (OPERACIONAL, JORNADA, GESTORES)
+// ⚙️ OUTRAS ABAS (OPERACIONAL, JORNADA, RESPONSÁVEIS)
 // ==========================================
 const dadosOperacionais = ref({ taxa_resposta: 0, sla_medio_dias: 0 });
 const clientesInativos = ref([]);
@@ -218,11 +218,11 @@ watch(filtros, () => {
 
 const labelPeriodo = computed(() => {
   if (!datasFiltro.value || !datasFiltro.value[0] || !datasFiltro.value[1]) return "Todo o Histórico";
-  return `${datasFiltro.value[0].toLocaleDateString('pt-PT')} até ${datasFiltro.value[1].toLocaleDateString('pt-PT')}`;
+  return `${datasFiltro.value[0].toLocaleDateString('pt-BR')} até ${datasFiltro.value[1].toLocaleDateString('pt-BR')}`;
 });
 
 const getCorNota = (nota) => nota >= 9 ? 'success' : (nota >= 7 ? 'warning' : 'danger');
-const formatarData = (d) => d ? new Date(d).toLocaleDateString('pt-PT') : '---';
+const formatarData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '---';
 
 onMounted(() => {
   fetchGraficos();
@@ -241,7 +241,7 @@ onMounted(() => {
       <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-4 border-b border-slate-200/60 dark:border-slate-800/60">
         <div>
           <h1 class="text-4xl lg:text-5xl font-black tracking-tighter italic text-slate-900 dark:text-white">
-            Relatórios <span class="text-indigo-500">Rakiti</span>
+            Relatórios <span class="text-indigo-500">.</span>
           </h1>
           <p class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mt-2">Relatórios Executivos e Visão de Jornada</p>
           
@@ -293,11 +293,11 @@ onMounted(() => {
                 <Dropdown v-model="filtros.segmento" :options="opcoesSegmento" class="custom-dropdown-minimal" />
               </div>
               <div class="flex flex-col gap-1.5 px-3 border-l border-slate-100 dark:border-slate-800">
-                <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest">Tamanho / ARR</span>
+                <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest">Receita</span>
                 <Dropdown v-model="filtros.arr" :options="opcoesARR" class="custom-dropdown-minimal" />
               </div>
               <div class="flex flex-col gap-1.5 px-3 border-l border-slate-100 dark:border-slate-800">
-                <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest">Safra</span>
+                <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest">Tempo de Casa</span>
                 <Dropdown v-model="filtros.safra" :options="opcoesSafra" class="custom-dropdown-minimal" />
               </div>
             </div>
@@ -341,7 +341,7 @@ onMounted(() => {
                 <Chart type="scatter" :data="dataScatter" :options="optionsScatter" class="h-[300px]" />
               </div>
               <div class="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm h-[400px]">
-                <h3 class="text-xs font-black uppercase tracking-widest mb-4">Análise de Safra</h3>
+                <h3 class="text-xs font-black uppercase tracking-widest mb-4">Clientes por Tempo de Casa</h3>
                 <Chart type="bar" :data="dataStackedBar" :options="optionsStackedBar" class="h-[300px]" />
               </div>
             </div>
@@ -357,11 +357,11 @@ onMounted(() => {
               <div class="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center">
                  <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Taxa de Resposta no Período</span>
                  <div class="text-6xl font-black text-indigo-500">{{ dadosOperacionais.taxa_resposta }}%</div>
-                 <p class="text-xs text-slate-500 mt-4 max-w-xs leading-relaxed">Percentagem de clientes ativos que responderam no período selecionado.</p>
+                 <p class="text-xs text-slate-500 mt-4 max-w-xs leading-relaxed">Porcentagem de clientes ativos que responderam no período selecionado.</p>
               </div>
               
               <div class="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center">
-                 <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">SLA Médio de Fechamento</span>
+                 <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Tempo médio para resolver</span>
                  <div class="text-6xl font-black text-emerald-500">{{ dadosOperacionais.sla_medio_dias }} <span class="text-2xl">dias</span></div>
                  <p class="text-xs text-slate-500 mt-4 max-w-xs leading-relaxed">Tempo médio de encerramento de ações corretivas no período.</p>
               </div>
@@ -371,7 +371,7 @@ onMounted(() => {
               <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <h3 class="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white flex items-center gap-2">
-                    <i class="pi pi-exclamation-triangle text-rose-500"></i> Risco de Omissão (Churn de Feedback)
+                    <i class="pi pi-exclamation-triangle text-rose-500"></i> Clientes que pararam de responder
                   </h3>
                   <p class="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-widest">
                     Clientes ativos sem qualquer interação recente.
@@ -451,7 +451,7 @@ onMounted(() => {
                   <i class="pi pi-comments text-2xl"></i>
                 </div>
                 <div>
-                  <h4 class="text-[9px] font-black uppercase tracking-widest text-slate-400">Volume de Voz</h4>
+                  <h4 class="text-[9px] font-black uppercase tracking-widest text-slate-400">Volume de Respostas</h4>
                   <p class="text-lg font-black text-slate-800 dark:text-white">{{ totalRespostasJornada }} Respostas</p>
                 </div>
               </div>
@@ -490,19 +490,19 @@ onMounted(() => {
         </TabPanel>
 
         <TabPanel>
-          <template #header><i class="pi pi-user mr-2"></i> Gestores</template>
+          <template #header><i class="pi pi-user mr-2"></i> Responsáveis</template>
           
           <div class="space-y-6 mt-6">
             <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 items-end">
               <div class="flex-1 space-y-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-slate-400">Performance do Gestor</label>
+                <label class="text-[10px] font-black uppercase tracking-widest text-slate-400">Performance do Responsável</label>
                 <Dropdown 
                   v-model="gestorSelecionado" 
                   :options="listaGestores" 
                   optionLabel="nome" 
                   optionValue="id" 
                   filter 
-                  placeholder="Selecione um Gestor" 
+                  placeholder="Selecione um Responsável" 
                   class="w-full custom-dropdown-premium" 
                   @change="carregarPerformanceGestor" 
                 />
@@ -516,7 +516,7 @@ onMounted(() => {
 
             <div v-else-if="dadosGestor" class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadein">
               <div class="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center">
-                 <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">NPS do Gestor no Período</span>
+                 <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">NPS do Responsável no Período</span>
                  <div class="text-7xl font-black" :class="dadosGestor.nps >= 70 ? 'text-emerald-500' : 'text-orange-500'">
                    {{ dadosGestor.nps }}
                  </div>
@@ -545,7 +545,7 @@ onMounted(() => {
             </div>
 
             <div v-else class="py-20 text-center text-slate-400 italic">
-               <p>Selecione um gestor e o período desejado no topo.</p>
+               <p>Selecione um responsável e o período desejado no topo.</p>
             </div>
           </div>
         </TabPanel>

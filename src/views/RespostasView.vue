@@ -22,7 +22,7 @@ const respostas = ref([]);
 const loading = ref(true);
 const router = useRouter();
 
-// Função que encaminha o utilizador para o Kanban com o ID da ação
+// Função que encaminha o usuário para o Planos de Ação com o ID da ação
 const irParaAcao = (acaoId) => {
   if (acaoId) {
     router.push({ path: '/acoes', query: { abrir: acaoId } });
@@ -96,7 +96,7 @@ const tratarData = (dataOriginal) => {
 };
 
 // ==========================================
-// 2. COMBOS (Companhias e Empresas)
+// 2. COMBOS (Grupos e Empresas)
 // ==========================================
 const empresasData = ref([]);
 const opcoesCompanhia = ref(['Todas']);
@@ -123,7 +123,7 @@ const carregarCombos = async () => {
     if (resComp.data) {
       const isArrayOfStrings = typeof resComp.data[0] === 'string';
       const nomes = isArrayOfStrings 
-          ? resComp.data.filter(c => c !== 'Todas as Companhias' && c !== 'Todas')
+          ? resComp.data.filter(c => c !== 'Todos os grupos' && c !== 'Todas')
           : resComp.data.map(c => c.nome);
           
       opcoesCompanhia.value = ['Todas', ...nomes.sort()];
@@ -326,7 +326,7 @@ const criarPlanoAcao = async () => {
     };
     
     await api.post('/acoes', payload);
-    toast.add({ severity: 'success', summary: 'Ação Delegada', detail: 'O Gestor foi notificado e a ação criada no Kanban.' });
+    toast.add({ severity: 'success', summary: 'Ação Delegada', detail: 'O Responsável foi notificado e a ação criada nos Planos de Ação.' });
     dialogNovaAcao.value = false;
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao delegar ação. Verifique a conexão.' });
@@ -370,11 +370,11 @@ const salvarRespostaManual = async () => {
   try {
     // Chama a API para gravar a resposta
     await api.post('/respostas/manual', formResposta.value);
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Resposta registada!' });
+    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Resposta cadastrada!' });
     modalNovaResposta.value = false;
     // recarregarRespostas(); <-- Chame a sua função que atualiza a tabela aqui
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao guardar.' });
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao salvar.' });
   } finally {
     salvandoResposta.value = false;
   }
@@ -394,14 +394,14 @@ const carregarClientesParaDropdown = async () => {
 // ==========================================
 // 🗑️ EXCLUSÃO DEFINITIVA (APENAS ADMIN)
 // ==========================================
-// Adapte a chave 'usuario_tipo' conforme o que guardou no seu localStorage no momento do login
+// Adapte a chave 'usuario_tipo' conforme o que salvou no seu localStorage no momento do login
 const isAdmin = computed(() => {
   const tipo = localStorage.getItem('usuario_tipo') || localStorage.getItem('tipo');
   return tipo === 'Admin';
 });
 
 const excluirRespostaDefinitiva = async (dados) => {
-  if (confirm(`ATENÇÃO: Deseja EXCLUIR DEFINITIVAMENTE o feedback da empresa ${dados.empresa}? \n\nEsta ação apagará a nota e QUALQUER PLANO DE AÇÃO que esteja no Kanban vinculado a ela. Esta ação não pode ser desfeita.`)) {
+  if (confirm(`ATENÇÃO: Deseja EXCLUIR DEFINITIVAMENTE o feedback da empresa ${dados.empresa}? \n\nEsta ação apagará a nota e QUALQUER PLANO DE AÇÃO que esteja nos Planos de Ação vinculado a ela. Esta ação não pode ser desfeita.`)) {
     try {
       await api.delete(`/respostas/${dados.resposta_id}`);
       toast.add({ severity: 'success', summary: 'Excluído', detail: 'Feedback e ações apagados permanentemente.', life: 4000 });
@@ -428,7 +428,7 @@ onMounted(async () => {
           Auditoria de Feedbacks <span class="text-orange-500">.</span>
         </h1>
         <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-2 font-bold uppercase tracking-widest">
-          Categorização e Enriquecimento Qualitativo (Close the Loop)
+          Categorização e Enriquecimento Qualitativo (Retorno ao Cliente)
         </p>
     </div> <div class="flex items-center gap-3 shrink-0">
         
@@ -532,7 +532,7 @@ onMounted(async () => {
         
         <div class="flex flex-col gap-1 pr-2">
           <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
-            <i class="pi pi-sitemap text-[8px]"></i> Companhia
+            <i class="pi pi-sitemap text-[8px]"></i> Grupo
           </span>
           <Dropdown v-model="filtros.companhia" :options="opcoesCompanhia" class="custom-minimal-element w-full" @change="carregarRespostas" />
         </div>
@@ -619,7 +619,7 @@ onMounted(async () => {
                 severity="warning" 
                 :value="'Ação #' + String(slotProps.data.acao_vinculada).padStart(3, '0')" 
                 class="cursor-pointer hover:scale-110 hover:!bg-orange-200 dark:hover:!bg-orange-500/40 transition-all !bg-orange-100 dark:!bg-orange-500/20 !text-orange-600 dark:!text-orange-400 !font-black !text-[10px] !px-3 shadow-sm border border-orange-200 dark:border-orange-500/30" 
-                v-tooltip.top="'Abrir esta Ação no Kanban'" />
+                v-tooltip.top="'Abrir esta Ação nos Planos de Ação'" />
             
             <span v-else class="text-slate-300 dark:text-slate-700 font-bold text-xs">-</span>
           </template>
@@ -630,7 +630,7 @@ onMounted(async () => {
             <div class="flex flex-col">
               <div class="flex items-center gap-2">
                 <span class="text-[12px] font-bold text-slate-800 dark:text-slate-100" :class="{'line-through text-slate-400': s.data.excluido}">
-                  {{ s.data.cliente_nome || s.data.nome || 'Utilizador Anónimo' }}
+                  {{ s.data.cliente_nome || s.data.nome || 'Usuário Anônimo' }}
                 </span>
                 <i v-if="s.data.perfil_decisor === 'Decisor' || s.data.perfil_cliente === 'Decisor'" class="pi pi-star-fill text-yellow-500 text-[10px]" v-tooltip.top="'Decisor'"></i>
               </div>
@@ -732,7 +732,7 @@ onMounted(async () => {
           <h2 class="text-lg font-black italic tracking-tight flex items-center gap-2">
             <i class="pi pi-clipboard text-orange-500"></i> Enriquecimento Qualitativo
           </h2>
-          <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1 font-bold">Close the Loop Tracker</p>
+          <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1 font-bold">Retorno ao Cliente Tracker</p>
         </div>
         <button @click="dialogEdicao = false" class="text-slate-400 hover:text-white transition-colors relative z-10 p-2"><i class="pi pi-times text-xl"></i></button>
       </div>
@@ -752,7 +752,7 @@ onMounted(async () => {
 
         <div class="flex flex-col gap-2">
           <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Comentário Original (Voice of Customer)</label>
-          <Button label="Delegar Plano de Ação (Kanban)" icon="pi pi-bolt" @click="abrirNovaAcao" class="w-full !bg-orange-50 dark:!bg-orange-500/10 !text-orange-600 !border !border-orange-200 dark:!border-orange-500/30 !rounded-xl !py-3 !font-black !text-[10px] uppercase tracking-widest hover:!bg-orange-100 transition-colors mt-2" />
+          <Button label="Criar Plano de Ação" icon="pi pi-bolt" @click="abrirNovaAcao" class="w-full !bg-orange-50 dark:!bg-orange-500/10 !text-orange-600 !border !border-orange-200 dark:!border-orange-500/30 !rounded-xl !py-3 !font-black !text-[10px] uppercase tracking-widest hover:!bg-orange-100 transition-colors mt-2" />
           <Textarea v-model="respostaAtual.motivo" rows="3" class="custom-input !bg-slate-50 dark:!bg-slate-800 !text-xs italic" />
         </div>
 
@@ -777,7 +777,7 @@ onMounted(async () => {
       
       <div class="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex gap-4 w-full">
         <Button label="Cancelar" text class="flex-1 font-black text-[11px] uppercase tracking-widest text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-colors" @click="dialogEdicao = false" />
-        <Button label="Guardar Auditoria" :loading="salvando" icon="pi pi-save" class="flex-1 bg-slate-900 dark:bg-white dark:text-slate-900 border-none rounded-xl font-black text-[11px] uppercase tracking-widest text-white shadow-xl hover:-translate-y-0.5 transition-transform" @click="salvarResposta" />
+        <Button label="Salvar Auditoria" :loading="salvando" icon="pi pi-save" class="flex-1 bg-slate-900 dark:bg-white dark:text-slate-900 border-none rounded-xl font-black text-[11px] uppercase tracking-widest text-white shadow-xl hover:-translate-y-0.5 transition-transform" @click="salvarResposta" />
       </div>
     </Dialog>
 
@@ -785,7 +785,7 @@ onMounted(async () => {
       <div class="bg-gradient-to-r from-orange-500 to-rose-500 text-white p-6 flex justify-between items-center">
         <div>
           <h2 class="text-lg font-black italic tracking-tight"><i class="pi pi-bolt mr-2"></i> Delegar Ação</h2>
-          <p class="text-[10px] text-orange-100 uppercase tracking-widest mt-1 font-bold">Ação Direta no Kanban</p>
+          <p class="text-[10px] text-orange-100 uppercase tracking-widest mt-1 font-bold">Plano de Ação</p>
         </div>
         <button @click="dialogNovaAcao = false" class="text-white/70 hover:text-white transition-colors p-2"><i class="pi pi-times text-xl"></i></button>
       </div>
@@ -806,7 +806,7 @@ onMounted(async () => {
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Atribuir Gestor</label>
+          <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Atribuir Responsável</label>
           <Dropdown 
             v-model="novaAcaoForm.gestor_id" 
             :options="gestoresLista" 
@@ -885,7 +885,7 @@ onMounted(async () => {
       <template #footer>
         <div class="flex justify-end gap-3 mt-4">
           <Button label="Cancelar" icon="pi pi-times" @click="modalNovaResposta = false" class="!bg-transparent !text-slate-500 !border-none !text-[10px] !font-black !uppercase tracking-widest" />
-          <Button label="Guardar Resposta" icon="pi pi-check" :loading="salvandoResposta" @click="salvarRespostaManual" class="!bg-orange-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase tracking-widest !px-6 py-3 shadow-lg hover:scale-105 transition-transform" />
+          <Button label="Salvar Resposta" icon="pi pi-check" :loading="salvandoResposta" @click="salvarRespostaManual" class="!bg-orange-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase tracking-widest !px-6 py-3 shadow-lg hover:scale-105 transition-transform" />
         </div>
       </template>
     </Dialog>

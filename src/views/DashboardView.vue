@@ -61,16 +61,16 @@ const ranking = ref([]);
 const nuvemPalavras = ref([]);
 const taxaResposta = ref(0);
 
-// --- ESTADOS DE COMPANHIAS ---
-const companhiaSelecionada = ref('Todas as Companhias');
-const listaCompanhias = ref(['Todas as Companhias']);
+// --- ESTADOS DE GRUPOS ---
+const companhiaSelecionada = ref('Todos os grupos');
+const listaCompanhias = ref(['Todos os grupos']);
 
 // --- TÓPICOS CRÍTICOS
 const topicosCriticos = ref([]);
 
 // --- INTELIGÊNCIA PREDITIVA ---
 const smartInsights = ref({
-  valor_em_risco: "€ 0",
+  valor_em_risco: "R$ 0",
   nivel_alerta: "Baixo"
 });
 
@@ -202,14 +202,14 @@ const gerarInsightIA = async (forcarNova = false) => {
 };
 
 // ==========================================
-// 🏢 CARREGAR COMPANHIAS DA API
+// 🏢 CARREGAR GRUPOS DA API
 // ==========================================
 const carregarCompanhias = async () => {
   try {
     const res = await api.get('/cadastros/companhias');
     if (res.data) {
       const nomes = res.data.map(c => c.nome).sort();
-      listaCompanhias.value = ['Todas as Companhias', ...nomes];
+      listaCompanhias.value = ['Todos os grupos', ...nomes];
     }
   } catch (error) {
     console.error("Erro ao carregar companhias:", error);
@@ -220,7 +220,7 @@ const carregarCompanhias = async () => {
 // 📅 VIGILANTE DE FILTROS (Unificado)
 // ==========================================
 watch([datasFiltro, companhiaSelecionada, apenasAtivos], ([novasDatas]) => {
-  // Dispara apenas se as datas estiverem completas ou se o utilizador apagou o calendário
+  // Dispara apenas se as datas estiverem completas ou se o usuário apagou o calendário
   if (!novasDatas || (novasDatas[0] && novasDatas[1])) {
     carregarDashboard();
     gerarInsightIA(false); 
@@ -230,8 +230,8 @@ watch([datasFiltro, companhiaSelecionada, apenasAtivos], ([novasDatas]) => {
 const obterParametrosFiltro = () => {
   const params = new URLSearchParams();
 
-  // 1. Filtro de Companhia
-  if (companhiaSelecionada.value && companhiaSelecionada.value !== 'Todas as Companhias') {
+  // 1. Filtro de Grupo
+  if (companhiaSelecionada.value && companhiaSelecionada.value !== 'Todos os grupos') {
     params.append('companhia', companhiaSelecionada.value);
   }
 
@@ -285,7 +285,7 @@ const carregarDashboard = async () => {
       nuvemPalavras.value = resKpis.data.kpis.termos_frequentes || [];
       
       const percDetratores = kpis.value.total_respostas > 0 ? (kpis.value.detratores / kpis.value.total_respostas) * 100 : 0;
-      smartInsights.value.valor_em_risco = `€ ${kpis.value.revenue_at_risk.toLocaleString('pt-PT')}`; 
+      smartInsights.value.valor_em_risco = `R$ ${kpis.value.revenue_at_risk.toLocaleString('pt-BR')}`; 
       smartInsights.value.nivel_alerta = percDetratores > 20 ? 'Crítico' : 'Estável';
       
       topicosCriticos.value = resKpis.data.kpis.topicos_criticos || [];
@@ -298,7 +298,7 @@ const carregarDashboard = async () => {
       taxaResposta.value = resDetalhes.data.taxa_resposta;
     }
 
-    nomeUsuario.value = (localStorage.getItem('usuario_nome') || 'Executivo').split(' ')[0];
+    nomeUsuario.value = (sessionStorage.getItem('usuario_nome') || localStorage.getItem('usuario_nome') || '').split(' ')[0];
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao processar dados do dashboard.', life: 5000 });
   } finally {
@@ -408,7 +408,30 @@ const exportarDados = async () => {
   }
 };
 
+// ==========================================
+// 🚀 GUIA DE PRIMEIROS PASSOS
+// ==========================================
+const onboarding = ref(null);
+const lerGuiaOculto = () => { try { return localStorage.getItem('guia_primeiros_passos_oculto') === '1'; } catch (e) { return false; } };
+const guiaOculto = ref(lerGuiaOculto());
+const ocultarGuia = () => { guiaOculto.value = true; try { localStorage.setItem('guia_primeiros_passos_oculto', '1'); } catch (e) {} };
+const passosGuia = computed(() => {
+  const p = onboarding.value?.passos || {};
+  return [
+    { chave: 'clientes', titulo: 'Cadastre seus clientes', texto: 'Importe uma planilha com seus clientes e contatos (ou cadastre um a um).', rota: '/importacao', botao: 'Importar planilha', feito: p.clientes },
+    { chave: 'formulario', titulo: 'Informe o link do seu formulário', texto: 'Cole o link do formulário de pesquisa (ex.: Fillout) e, no Fillout, o link de recebimento de respostas.', rota: '/configuracoes', botao: 'Abrir configurações', feito: p.formulario },
+    { chave: 'envio', titulo: 'Envie a primeira pesquisa', texto: 'Ative o envio de e-mails e dispare a pesquisa para alguns clientes.', rota: '/audiencia', botao: 'Ir para Envios', feito: p.envio },
+    { chave: 'respostas', titulo: 'Receba as primeiras respostas', texto: 'Assim que alguém responder, os números aparecem aqui e as notas baixas viram Planos de Ação.', rota: '/respostas', botao: 'Ver respostas', feito: p.respostas },
+  ];
+});
+const passosConcluidos = computed(() => passosGuia.value.filter(x => x.feito).length);
+const mostrarGuia = computed(() => onboarding.value && !onboarding.value.concluido && !guiaOculto.value);
+const carregarOnboarding = async () => {
+  try { const res = await api.get('/onboarding'); onboarding.value = res.data; } catch (e) { console.error(e); }
+};
+
 onMounted(() => {
+  carregarOnboarding();
   carregarCompanhias(); 
   carregarDashboard();
   gerarInsightIA(false); 
@@ -431,7 +454,7 @@ onMounted(() => {
               <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
             <p class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-              Olá, {{ nomeUsuario }} • tudo prontinho!
+              Olá{{ nomeUsuario ? ', ' + nomeUsuario : '' }}!
             </p>
           </div>
         </div>
@@ -448,12 +471,12 @@ onMounted(() => {
             <Dropdown 
               v-model="companhiaSelecionada" 
               :options="listaCompanhias" 
-              placeholder="Todas as Companhias" 
+              placeholder="Todos os grupos" 
               class="custom-dropdown-minimal border-none shadow-none w-40 xl:w-56 bg-transparent" 
             />
-            <i v-if="companhiaSelecionada && companhiaSelecionada !== 'Todas as Companhias'" 
+            <i v-if="companhiaSelecionada && companhiaSelecionada !== 'Todos os grupos'" 
               class="pi pi-times text-slate-300 hover:text-rose-500 cursor-pointer ml-2 transition-colors text-xs" 
-              @click="companhiaSelecionada = 'Todas as Companhias'" 
+              @click="companhiaSelecionada = 'Todos os grupos'" 
               v-tooltip.top="'Limpar Filtro'">
             </i>
           </div>
@@ -502,6 +525,40 @@ onMounted(() => {
         </div>
       </div>
 
+      <div v-if="mostrarGuia" class="mb-8 bg-white dark:bg-slate-900/80 rounded-[2rem] border border-orange-200 dark:border-orange-500/30 shadow-xl shadow-orange-500/5 p-6 md:p-8">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-xl font-black text-slate-900 dark:text-white">Primeiros passos</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Siga estes {{ passosGuia.length }} passos para receber as primeiras respostas. Concluídos: <strong class="text-orange-500">{{ passosConcluidos }} de {{ passosGuia.length }}</strong></p>
+          </div>
+          <button @click="ocultarGuia" class="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <i class="pi pi-times mr-1"></i> Ocultar guia
+          </button>
+        </div>
+        <div class="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 mb-6 overflow-hidden">
+          <div class="h-full bg-orange-500 rounded-full transition-all" :style="{ width: (passosConcluidos / passosGuia.length * 100) + '%' }"></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div v-for="(passo, i) in passosGuia" :key="passo.chave"
+               class="rounded-2xl border p-5 flex flex-col gap-3 transition-all"
+               :class="passo.feito ? 'border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-500/5' : 'border-slate-200 dark:border-slate-700'">
+            <div class="flex items-center gap-3">
+              <span class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-black shrink-0"
+                    :class="passo.feito ? 'bg-emerald-500 text-white' : 'bg-orange-100 dark:bg-orange-500/20 text-orange-600'">
+                <i v-if="passo.feito" class="pi pi-check text-xs"></i><span v-else>{{ i + 1 }}</span>
+              </span>
+              <h3 class="text-sm font-black text-slate-800 dark:text-white">{{ passo.titulo }}</h3>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed flex-1">{{ passo.texto }}</p>
+            <button v-if="!passo.feito" @click="router.push(passo.rota)"
+                    class="self-start text-[10px] font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 hover:underline">
+              {{ passo.botao }} <i class="pi pi-arrow-right text-[9px] ml-1"></i>
+            </button>
+            <span v-else class="text-[10px] font-black uppercase tracking-widest text-emerald-600">Concluído</span>
+          </div>
+        </div>
+      </div>
+
       <div v-if="loading" class="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Skeleton v-for="i in 4" :key="i" height="200px" borderRadius="2rem" class="dark:bg-slate-800/50" />
       </div>
@@ -546,7 +603,7 @@ onMounted(() => {
           <div class="bg-white dark:bg-slate-900/80 p-6 xl:p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group">
             <div class="flex justify-between items-start mb-2">
               <div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Polaridade</span>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Distribuição</span>
                 <span class="text-[8px] font-bold text-slate-400/70 uppercase tracking-widest mt-0.5">Distribuição de Sentimento</span>
               </div>
               <div class="w-8 h-8 rounded-full bg-sky-50 dark:bg-sky-500/10 flex items-center justify-center border border-sky-100 dark:border-sky-500/20 group-hover:bg-sky-500 transition-colors duration-300">
@@ -626,7 +683,7 @@ onMounted(() => {
             
             <div class="flex justify-between items-start mb-2 relative z-10">
               <div>
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Risco de Churn</span>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Risco de Perda</span>
                 <span class="text-[8px] font-bold text-slate-400/70 uppercase tracking-widest mt-0.5">Promotores Perdidos</span>
               </div>
               <div class="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center border border-rose-100 dark:border-rose-500/20 group-hover:bg-rose-500 transition-colors duration-300">
@@ -662,7 +719,7 @@ onMounted(() => {
                 <h3 class="text-xs font-black uppercase tracking-[0.2em] text-rose-500">
                   Radar de Retenção
                 </h3>
-                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Clientes a precisar de atenção imediata</p>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Clientes precisando de atenção imediata</p>
               </div>
             </div>
           </div>
@@ -695,7 +752,7 @@ onMounted(() => {
                     <span class="text-[9px] font-black uppercase text-rose-400/70 tracking-widest mb-1 bg-rose-50 dark:bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-100 dark:border-rose-500/20">NPS</span>
                   </div>
                   <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                    Sinal de risco detetado. Uma chamada rápida pode ser a chave para <strong class="text-rose-500 dark:text-rose-400 font-black">reverter este cenário</strong>.
+                    Sinal de risco detectado. Uma chamada rápida pode ser a chave para <strong class="text-rose-500 dark:text-rose-400 font-black">reverter este cenário</strong>.
                   </p>
                 </div>
 
@@ -846,7 +903,7 @@ onMounted(() => {
               </div>
               <div class="bg-white/5 p-4 rounded-[1.5rem] border border-white/10 backdrop-blur-sm transition-all duration-300 hover:bg-white/10" :class="{'border-emerald-500/30 bg-emerald-500/5': simulador.receitaSalva > 0}">
                 <span class="text-[8px] font-black uppercase text-slate-400 tracking-widest">Receita Salva</span>
-                <div class="text-2xl font-black text-emerald-400 mt-1 truncate">€ {{ (simulador.receitaSalva / 1000).toFixed(1) }}k</div>
+                <div class="text-2xl font-black text-emerald-400 mt-1 truncate">R$ {{ (simulador.receitaSalva / 1000).toFixed(1) }} mil</div>
               </div>
             </div>
           </div>
@@ -940,7 +997,7 @@ onMounted(() => {
                         <div class="p-6 bg-rose-500/10 border border-rose-500/20 rounded-[2rem] flex flex-col gap-4 group hover:bg-rose-500/20 transition-colors shadow-inner shadow-rose-500/5">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-[1rem] bg-rose-500 flex items-center justify-center shadow-lg shadow-rose-500/30 shrink-0 group-hover:scale-110 transition-transform"><i class="pi pi-fire text-white"></i></div>
-                                <h4 class="text-[10px] font-black uppercase tracking-widest text-rose-400">O Que Está a Falhar</h4>
+                                <h4 class="text-[10px] font-black uppercase tracking-widest text-rose-400">O que precisa melhorar</h4>
                             </div>
                             <p class="text-[13px] text-slate-300 font-medium leading-relaxed">{{ resultadoAI.arder }}</p>
                         </div>
@@ -948,7 +1005,7 @@ onMounted(() => {
                         <div class="p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-[2rem] flex flex-col gap-4 group hover:bg-emerald-500/20 transition-colors shadow-inner shadow-emerald-500/5">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-[1rem] bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0 group-hover:scale-110 transition-transform"><i class="pi pi-heart-fill text-white"></i></div>
-                                <h4 class="text-[10px] font-black uppercase tracking-widest text-emerald-400">O Que Está a Funcionar</h4>
+                                <h4 class="text-[10px] font-black uppercase tracking-widest text-emerald-400">O que está funcionando</h4>
                             </div>
                             <p class="text-[13px] text-slate-300 font-medium leading-relaxed">{{ resultadoAI.amar }}</p>
                         </div>
@@ -988,7 +1045,7 @@ onMounted(() => {
           <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-sky-500"></div>
           <h3 class="text-[11px] font-black uppercase tracking-widest text-slate-800 dark:text-white mb-2 ml-1">NPS Score Global</h3>
           <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed ml-1">
-            O <strong>Net Promoter Score (NPS)</strong> é a métrica principal de lealdade. Varia de -100 a +100. É calculado subtraindo a percentagem de Detratores da percentagem de Promotores: <br>
+            O <strong>Net Promoter Score (NPS)</strong> é a métrica principal de lealdade. Varia de -100 a +100. É calculado subtraindo a porcentagem de Detratores da porcentagem de Promotores: <br>
             <code class="block mt-3 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-lg text-[10px] font-mono text-sky-600 dark:text-sky-400 font-bold border border-slate-100 dark:border-slate-800">% Promotores - % Detratores = NPS Global</code>
           </p>
         </div>
@@ -1000,7 +1057,7 @@ onMounted(() => {
               <Tag value="9 - 10" class="!bg-emerald-500/10 !text-emerald-600 dark:!text-emerald-400 !text-[10px] !font-black w-14 shrink-0" />
               <div>
                 <span class="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 block mb-0.5">Promotores</span>
-                <span class="text-[10px] text-slate-500 leading-tight block">Clientes leais que continuarão a comprar e a recomendar a sua empresa.</span>
+                <span class="text-[10px] text-slate-500 leading-tight block">Clientes leais que continuarão comprando e recomendando a sua empresa.</span>
               </div>
             </div>
             <div class="flex items-start gap-3">
@@ -1014,7 +1071,7 @@ onMounted(() => {
               <Tag value="0 - 6" class="!bg-rose-500/10 !text-rose-600 dark:!text-rose-400 !text-[10px] !font-black w-14 shrink-0" />
               <div>
                 <span class="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 block mb-0.5">Detratores</span>
-                <span class="text-[10px] text-slate-500 leading-tight block">Clientes insatisfeitos com alto risco de Churn. Requerem ação imediata.</span>
+                <span class="text-[10px] text-slate-500 leading-tight block">Clientes insatisfeitos com alto risco de perda. Requerem ação imediata.</span>
               </div>
             </div>
           </div>
@@ -1032,7 +1089,7 @@ onMounted(() => {
           <div class="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden group hover:border-orange-500/30 transition-colors">
             <div class="absolute left-0 top-0 bottom-0 w-1 bg-orange-500"></div>
             <h4 class="text-[10px] font-black uppercase tracking-widest text-orange-500 mb-1.5 flex items-center gap-2 ml-1">
-              <i class="pi pi-dollar"></i> Revenue at Risk (Receita)
+              <i class="pi pi-dollar"></i> Receita em Risco
             </h4>
             <p class="text-[10px] text-slate-500 ml-1">Mostra a soma do valor de contrato de <strong>todas as empresas</strong> que possuem pelo menos um cliente Detrator (Nota 0 a 6). É o montante financeiro real em risco.</p>
           </div>
@@ -1075,7 +1132,7 @@ onMounted(() => {
       <div class="bg-gradient-to-r from-rose-500 to-rose-600 text-white p-6 flex justify-between items-center relative overflow-hidden">
         <div class="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
         <div class="relative z-10">
-          <h2 class="text-lg font-black italic tracking-tight"><i class="pi pi-exclamation-triangle mr-2"></i> Risco de Churn</h2>
+          <h2 class="text-lg font-black italic tracking-tight"><i class="pi pi-exclamation-triangle mr-2"></i> Risco de Perda</h2>
           <p class="text-[10px] text-rose-100 uppercase tracking-widest mt-1 font-bold">Histórico de Promotores Perdidos</p>
         </div>
         <button @click="dialogRiscoVisivel = false" class="text-white/70 hover:text-white transition-colors p-2 relative z-10"><i class="pi pi-times text-xl"></i></button>
@@ -1200,7 +1257,7 @@ onMounted(() => {
   @apply outline-none text-slate-700 dark:text-slate-100 font-bold p-2;
 }
 
-/* --- Dropdown (Companhias) --- */
+/* --- Dropdown (Grupos) --- */
 :deep(.custom-dropdown),
 :deep(.custom-dropdown-minimal) {
   background-color: transparent !important;
@@ -1256,5 +1313,5 @@ onMounted(() => {
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { @apply bg-transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-slate-200 dark:bg-slate-700 rounded-full; }
-::-webkit-scrollbar { display: none; } /* Oculta a scrollbar principal do ecrã */
+::-webkit-scrollbar { display: none; } /* Oculta a scrollbar principal da tela */
 </style>

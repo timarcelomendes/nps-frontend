@@ -52,14 +52,14 @@ const executarLimpeza = async () => {
       <div class="w-20 h-20 bg-rose-100 dark:bg-rose-500/20 text-rose-500 rounded-full flex items-center justify-center text-4xl mx-auto mb-6"><i class="pi pi-lock"></i></div>
       <h2 class="text-2xl font-black text-rose-600 dark:text-rose-400 mb-2">Acesso Restrito</h2>
       <p class="text-slate-600 dark:text-slate-300 font-medium max-w-md mx-auto">
-        Apenas utilizadores com o perfil de Administrador têm permissão para aceder à zona de exclusão em massa.
+        Apenas usuários com o perfil de Administrador têm permissão para acessar a área de exclusão em massa.
       </p>
     </div>
 
     <div v-else class="space-y-6">
       <div class="bg-rose-50/50 dark:bg-rose-500/5 border border-rose-200 dark:border-rose-500/20 p-6 md:p-8 rounded-[2rem] shadow-sm">
         <h3 class="text-xs font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 flex items-center gap-2 mb-6">
-          <i class="pi pi-exclamation-triangle animate-pulse"></i> Danger Zone (Zona de Perigo)
+          <i class="pi pi-exclamation-triangle animate-pulse"></i> Zona de Risco (Zona de Perigo)
         </h3>
         
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">

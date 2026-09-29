@@ -163,7 +163,7 @@ const carregarCompanhias = async () => {
   try {
     const res = await api.get('/dashboard/companhias'); 
     if (res.data && Array.isArray(res.data)) {
-      const nomes = res.data.filter(c => c && c !== "Todas as Companhias");
+      const nomes = res.data.filter(c => c && c !== "Todos os grupos");
       companhiasLista.value = [...new Set(nomes)].sort();
     }
   } catch (error) {}
@@ -420,7 +420,7 @@ onMounted(async () => {
 
   if (route.query.empresa && empresasLista.value.includes(route.query.empresa)) {
     filtroEmpresa.value = [route.query.empresa];
-    toast.add({ severity: 'info', summary: 'Filtro Aplicado', detail: `A exibir ações para: ${route.query.empresa}`, life: 4000 });
+    toast.add({ severity: 'info', summary: 'Filtro Aplicado', detail: `Exibindo ações para: ${route.query.empresa}`, life: 4000 });
   }
 });
 </script>
@@ -453,7 +453,7 @@ onMounted(async () => {
           @click="carregarAcoes" 
           :loading="loading" 
           class="w-10 h-10 !bg-slate-50 dark:!bg-slate-800 !text-slate-600 dark:!text-slate-400 !border-none !rounded-lg hover:!bg-slate-100 dark:hover:!bg-slate-700 hover:!text-indigo-500 transition-colors shrink-0" 
-          v-tooltip.top="'Atualizar Kanban'" 
+          v-tooltip.top="'Atualizar'" 
         />
         
         <div class="hidden md:block w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
@@ -474,8 +474,8 @@ onMounted(async () => {
       <div class="absolute left-0 top-0 w-1.5 h-full bg-sky-500 rounded-l-[1.5rem]"></div>
       
       <div class="flex flex-col gap-1 shrink-0 w-[180px]">
-        <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-sitemap text-[8px]"></i> Companhia</span>
-        <MultiSelect v-model="filtroCompanhia" :options="companhiasLista" placeholder="Todas as companhias" display="chip" class="custom-dropdown-minimal w-full" />
+        <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-sitemap text-[8px]"></i> Grupo</span>
+        <MultiSelect v-model="filtroCompanhia" :options="companhiasLista" placeholder="Todos os grupos" display="chip" class="custom-dropdown-minimal w-full" />
       </div>
 
       <div class="w-px h-8 bg-slate-100 dark:bg-slate-800 shrink-0"></div>
@@ -725,14 +725,14 @@ onMounted(async () => {
             <Dropdown v-model="acaoAtual.empresa_nome" :options="empresasLista" editable filter placeholder="Selecionar..." class="custom-input !p-0" @change="aoMudarEmpresa" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Grupo (Companhia)</label>
+            <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Grupo</label>
             <Dropdown v-model="acaoAtual.companhia" :options="companhiasLista" editable filter placeholder="Opcional" class="custom-input !p-0" />
           </div>
         </div>
         
         <div class="grid grid-cols-2 gap-5">
           <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Gestor Responsável</label>
+            <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Responsável</label>
             <Dropdown v-model="acaoAtual.gestor_id" :options="gestoresLista" optionLabel="nome" optionValue="id" filter placeholder="Atribuir..." class="custom-input !p-0">
               <template #value="slotProps">
                 <div v-if="slotProps.value" class="flex items-center gap-2 px-3 py-2.5">
@@ -742,14 +742,14 @@ onMounted(async () => {
                   </div>
                   <span class="text-sm font-bold text-slate-700 dark:text-slate-200">{{ getGestor(slotProps.value)?.nome }}</span>
                 </div>
-                <span v-else class="p-3.5 text-sm text-slate-400 italic">Selecionar gestor</span>
+                <span v-else class="p-3.5 text-sm text-slate-400 italic">Selecionar responsável</span>
               </template>
             </Dropdown>
           </div>
           
           <div class="flex flex-col gap-1.5">
             <label class="text-[10px] font-black uppercase tracking-widest text-orange-500 ml-1 flex items-center gap-1.5">
-               <i class="pi pi-stopwatch"></i> Tipo de SLA (Ciclo)
+               <i class="pi pi-stopwatch"></i> Tipo de Prazo
             </label>
             <Dropdown v-model="acaoAtual.contexto" :options="opcoesContexto" optionLabel="label" optionValue="value" class="custom-input !p-0" />
           </div>
@@ -821,14 +821,14 @@ onMounted(async () => {
         
         <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
           <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>
-          <h3 class="text-[11px] font-black uppercase tracking-widest text-slate-800 dark:text-white mb-2 ml-1">Metodologia Close the Loop</h3>
+          <h3 class="text-[11px] font-black uppercase tracking-widest text-slate-800 dark:text-white mb-2 ml-1">Metodologia Retorno ao Cliente</h3>
           <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed ml-1">
             O objetivo desta tela é garantir que <strong>toda resposta</strong> de cliente receba uma tratativa. O ciclo só termina quando o cliente é ouvido e a pendência é movida para "Concluído".
           </p>
         </div>
 
         <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-100 dark:border-slate-700 shadow-sm">
-          <h3 class="text-[11px] font-black uppercase tracking-widest text-slate-800 dark:text-white mb-4">Prazos de Atendimento (SLA)</h3>
+          <h3 class="text-[11px] font-black uppercase tracking-widest text-slate-800 dark:text-white mb-4">Prazos de Atendimento</h3>
           <div class="space-y-4">
             <div class="flex items-start gap-3">
               <div class="w-2 h-10 rounded-full bg-rose-500 shrink-0 mt-1"></div>
@@ -863,7 +863,7 @@ onMounted(async () => {
             </li>
             <li class="flex items-center gap-3 text-[10px] text-slate-600 dark:text-slate-400">
               <i class="pi pi-circle-fill text-[6px] text-indigo-400"></i>
-              <span><strong>Em Andamento:</strong> Cards que já estão a ser tratados pelo gestor.</span>
+              <span><strong>Em Andamento:</strong> Cards que já estão sendo tratados pelo responsável.</span>
             </li>
             <li class="flex items-center gap-3 text-[10px] text-slate-600 dark:text-slate-400">
               <i class="pi pi-circle-fill text-[6px] text-indigo-400"></i>
@@ -944,7 +944,7 @@ onMounted(async () => {
     @apply bg-sky-500/10 text-sky-600 dark:text-sky-400 !important;
 }
 
-/* O fundo azul das "Chips" nos filtros do Kanban de Ações */
+/* O fundo azul das "Chips" nos filtros dos Planos de Ação de Ações */
 :deep(.custom-dropdown-minimal .p-multiselect-token) {
     @apply bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest mr-1 mb-0;
 }

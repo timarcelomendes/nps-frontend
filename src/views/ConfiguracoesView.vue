@@ -22,7 +22,7 @@ import Checkbox from 'primevue/checkbox';
 
 const toast = useToast();
 
-// --- ESTADOS DE CONTROLO ---
+// --- ESTADOS DE CONTROLE ---
 const loading = ref(false);
 const verificandoConexao = ref(false);
 const carregandoDados = ref(false);
@@ -31,7 +31,7 @@ const carregandoUtilizadores = ref(false);
 // Captura o ID de quem está logado para ocultar o botão de exclusão da própria conta
 const idUsuarioLogado = ref(localStorage.getItem('usuario_id') || '');
 
-// --- ESTADO: GESTOR DE IMAGENS (E-MAIL) ---
+// --- ESTADO: RESPONSÁVEL DE IMAGENS (E-MAIL) ---
 const enviandoImagem = ref(false);
 const imagensUpload = ref([]);
 const fileInputImagem = ref(null);
@@ -60,12 +60,12 @@ const formConfigAI = ref({
 });
 
 const opcoesModeloIA = [
-  { label: 'GPT-4o Mini (Rápido/Económico)', value: 'gpt-4o-mini' },
+  { label: 'GPT-4o Mini (Rápido/Econômico)', value: 'gpt-4o-mini' },
   { label: 'GPT-4 Turbo (Poderoso/Preciso)', value: 'gpt-4-turbo' },
   { label: 'GPT-4o (Otimizado/Multimodal)', value: 'gpt-4o' }
 ];
 
-// --- ESTADO: UTILIZADORES ---
+// --- ESTADO: USUÁRIOS ---
 const utilizadores = ref([]);
 const usuarioDialog = ref(false);
 const editandoUser = ref(false);
@@ -74,9 +74,9 @@ const submetendoUser = ref(false);
 const opcoesTipo = ['Admin', 'Manager', 'Viewer'];
 
 const formatarDataHora = (dataString) => {
-  if (!dataString) return 'Nunca acedeu';
+  if (!dataString) return 'Nunca acessou';
   const data = new Date(dataString);
-  return data.toLocaleString('pt-PT', {
+  return data.toLocaleString('pt-BR', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   }).replace(',', ' às');
@@ -137,7 +137,7 @@ const loadingSessoes = ref(false);
 const carregarSessoesReais = async () => {
   loadingSessoes.value = true;
   try {
-    // Busca o ID do utilizador logado no momento
+    // Busca o ID do usuário logado no momento
     const meuId = localStorage.getItem('usuario_id') || 1; 
     const response = await api.get(`/usuarios/sessoes?usuario_id=${meuId}`);
     
@@ -240,6 +240,11 @@ const salvarConfigEmail = async () => {
 // ==========================================
 // 📡 CARREGAR CONFIGURAÇÕES DE IA
 // ==========================================
+const usoIA = ref({ usadas: 0, limite: 0, ativa: false });
+const carregarUsoIA = async () => {
+  try { const res = await api.get('/ia/uso'); usoIA.value = res.data; } catch (e) { console.error(e); }
+};
+
 const carregarConfiguracoesAI = async () => {
   loadingAIConfig.value = true;
   try {
@@ -261,9 +266,9 @@ const salvarConfiguracoesAI = async () => {
       chave: key, valor: String(formConfigAI.value[key] || '')
     }));
     await api.post('/configuracoes', payload);
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Integração de Inteligência Artificial guardada.', life: 3000 });
+    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Integração de Inteligência Artificial salva.', life: 3000 });
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao guardar configurações de IA.', life: 3000 });
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao salvar configurações de IA.', life: 3000 });
   } finally {
     savingAIConfig.value = false;
   }
@@ -320,7 +325,7 @@ const enviarTeste = async () => {
 };
 
 // ==========================================
-// 💾 GESTÃO DE UTILIZADORES
+// 💾 GESTÃO DE USUÁRIOS
 // ==========================================
 const usuario = ref({ nome: '', email: '', cargo: '', tipo: 'Viewer', ativo: true, password: '' });
 
@@ -331,14 +336,14 @@ const carregarUtilizadores = async () => {
     let lista = Array.isArray(response.data) ? response.data : [response.data];
     utilizadores.value = lista.sort((a, b) => Number(a.ativo) - Number(b.ativo));
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao listar utilizadores.', life: 5000 });
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao listar usuários.', life: 5000 });
   } finally {
     carregandoUtilizadores.value = false;
   }
 };
 
 const salvarUtilizador = async () => {
-  // 🎯 TRAVA 1: Impede guardar o formulário se estiver a ativar sem um perfil válido
+  // 🎯 TRAVA 1: Impede salvar o formulário se estiver ativando sem um perfil válido
   if (usuario.value.ativo && !opcoesTipo.includes(usuario.value.tipo)) {
     toast.add({ 
       severity: 'warn', 
@@ -356,7 +361,7 @@ const salvarUtilizador = async () => {
       toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Dados atualizados com sucesso.' });
     } else {
       await api.post('/usuarios', usuario.value);
-      toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Utilizador criado.' });
+      toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Usuário criado.' });
     }
     usuarioDialog.value = false;
     carregarUtilizadores();
@@ -374,7 +379,7 @@ const alternarStatus = async (user_data) => {
     toast.add({ 
       severity: 'warn', 
       summary: 'Ação Necessária', 
-      detail: 'Defina o Nível de Acesso do utilizador antes de liberar o acesso.', 
+      detail: 'Defina o Nível de Acesso do usuário antes de liberar o acesso.', 
       life: 5000 
     });
     prepararEdicaoUser(user_data);
@@ -384,7 +389,7 @@ const alternarStatus = async (user_data) => {
   try {
     await api.put(`/usuarios/${user_data.usuario_id}`, { ...user_data, ativo: novoStatus });
     user_data.ativo = novoStatus; 
-    toast.add({ severity: 'success', summary: 'Acesso Atualizado', detail: novoStatus ? 'Utilizador ativado!' : 'Acesso bloqueado.', life: 3000 });
+    toast.add({ severity: 'success', summary: 'Acesso Atualizado', detail: novoStatus ? 'Usuário ativado!' : 'Acesso bloqueado.', life: 3000 });
     utilizadores.value.sort((a, b) => Number(a.ativo) - Number(b.ativo));
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível alterar o status.', life: 3000 });
@@ -485,7 +490,7 @@ const salvarIntegracoes = async () => {
     await api.put('/configuracoes/integracoes', integracoesConfig.value);
     toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Integrações atualizadas com sucesso!', life: 3000 });
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao guardar configurações de integração.', life: 5000 });
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao salvar configurações de integração.', life: 5000 });
   } finally { 
     savingIntegracoes.value = false; 
   }
@@ -523,7 +528,7 @@ const testarWebhookRecebimento = async () => {
 
 const limparCacheNavegador = () => {
   localStorage.removeItem('nps_ver_arquivados');
-  toast.add({ severity: 'success', summary: 'Cache Limpo', detail: 'A recarregar o sistema com dados frescos...', life: 2000 });
+  toast.add({ severity: 'success', summary: 'Cache Limpo', detail: 'Recarregando o sistema com dados frescos...', life: 2000 });
   setTimeout(() => { window.location.reload(true); }, 1500);
 };
 
@@ -603,7 +608,7 @@ const regrasConfig = ref({
 const opcoesCamposFillout = ref([
   { label: 'ID do Cliente', value: 'clienteId' }, { label: 'E-mail', value: 'email' },
   { label: 'Nome', value: 'nome' }, { label: 'Empresa', value: 'empresa' },
-  { label: 'ID da Empresa', value: 'empresa_id' }, { label: 'Gestor', value: 'gestor' }, { label: 'Segmento', value: 'segmento' }
+  { label: 'ID da Empresa', value: 'empresa_id' }, { label: 'Responsável', value: 'gestor' }, { label: 'Segmento', value: 'segmento' }
 ]);
 
 const carregarRegras = async () => {
@@ -631,7 +636,7 @@ const carregarRegras = async () => {
     
     camposHtml.forEach(campo => {
       if (regrasConfig.value[campo]) {
-        // Pega no {backend_url} guardado na BD e converte na URL do ambiente onde a pessoa está agora!
+        // Pega no {backend_url} salvo na BD e converte na URL do ambiente onde a pessoa está agora!
         regrasConfig.value[campo] = regrasConfig.value[campo].replaceAll('{backend_url}', urlReal);
       }
     });
@@ -692,7 +697,7 @@ const processarUploadImagem = async (event) => {
       toast.add({ severity: 'success', summary: 'Imagem Atualizada', detail: 'A imagem foi substituída com sucesso no servidor.' });
     } else {
       imagensUpload.value.unshift(res.data);
-      toast.add({ severity: 'success', summary: 'Imagem Hospedada', detail: 'O ficheiro já tem uma URL pública.' });
+      toast.add({ severity: 'success', summary: 'Imagem Hospedada', detail: 'O arquivo já tem uma URL pública.' });
     }
 
   } catch (error) {
@@ -709,7 +714,7 @@ const copiarUrl = (url) => {
 };
 
 const removerImagem = async (nomeArquivo) => {
-  if(confirm("Tem a certeza que deseja apagar esta imagem? Os e-mails deixarão de a exibir.")){
+  if(confirm("Tem certeza que deseja apagar esta imagem? Os e-mails deixarão de a exibir.")){
     try {
       await api.delete(`/config/imagens/${nomeArquivo}`);
       imagensUpload.value = imagensUpload.value.filter(img => img.nome !== nomeArquivo);
@@ -784,7 +789,7 @@ const salvarRegras = async () => {
   try {
     const urlReal = obterUrlServidor();
     
-    // 1. Cria uma cópia profunda para não afetar o que o utilizador vê no ecrã
+    // 1. Cria uma cópia profunda para não afetar o que o usuário vê na tela
     const payload = JSON.parse(JSON.stringify(regrasConfig.value));
     
     // 2. Formata campos especiais
@@ -816,7 +821,7 @@ const salvarRegras = async () => {
     toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Regras de negócio atualizadas!', life: 3000 });
   } catch (error) {
     console.error("Erro ao salvar regras:", error);
-    toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.detail || 'Falha ao guardar configurações.', life: 5000 });
+    toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.detail || 'Falha ao salvar configurações.', life: 5000 });
   } finally { 
     savingRegras.value = false; 
   }
@@ -862,7 +867,7 @@ const testarTemplateConvite = async () => {
 
 const loadingTesteAgradecimento = ref(false);
 const emailTesteAgradecimento = ref('');
-const modeloBaseAgradecimento = `<!DOCTYPE html><html><body style="background-color: #f4f4f4; padding: 40px; font-family: sans-serif;"><div style="background-color: #ffffff; padding: 30px; border-radius: 8px; max-width: 600px; margin: 0 auto;"><h2 style="color: #333;">Obrigado, {nome}!</h2><p>A sua avaliação da parceria com a <strong>{empresa}</strong> é muito importante.</p><p>A sua nota final foi: <strong style="font-size: 18px; color: #F97316;">{nota}/10</strong></p><div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #F97316; margin: 20px 0;"><p style="margin: 0; font-style: italic; color: #555;">"{motivo}"</p></div><p>A nossa equipa já está a analisar o seu feedback.</p></div></body></html>`;
+const modeloBaseAgradecimento = `<!DOCTYPE html><html><body style="background-color: #f4f4f4; padding: 40px; font-family: sans-serif;"><div style="background-color: #ffffff; padding: 30px; border-radius: 8px; max-width: 600px; margin: 0 auto;"><h2 style="color: #333;">Obrigado, {nome}!</h2><p>A sua avaliação da parceria com a <strong>{empresa}</strong> é muito importante.</p><p>A sua nota final foi: <strong style="font-size: 18px; color: #F97316;">{nota}/10</strong></p><div style="background-color: #f9f9f9; padding: 15px; border-left: 4px solid #F97316; margin: 20px 0;"><p style="margin: 0; font-style: italic; color: #555;">"{motivo}"</p></div><p>A nossa equipe já está analisando o seu feedback.</p></div></body></html>`;
 
 const testarTemplateAgradecimento = async () => {
   if (!emailTesteAgradecimento.value) return toast.add({ severity: 'warn', summary: 'Aviso', detail: 'Introduza um e-mail.' });
@@ -935,7 +940,7 @@ const permissoesAtuais = ref({
   Manager: []
 });
 
-// O "Dicionário" do que cada chave significa para desenhar no ecrã
+// O "Dicionário" do que cada chave significa para desenhar na tela
 const modulosPermissoes = ref([
   {
     nome: 'Dashboard & Relatórios',
@@ -947,7 +952,7 @@ const modulosPermissoes = ref([
     ]
   },
   {
-    nome: 'Kanban & Ações',
+    nome: 'Planos de Ação',
     icone: 'pi-objects-column',
     cor: 'text-orange-500',
     permissoes: [
@@ -955,7 +960,7 @@ const modulosPermissoes = ref([
       { chave: 'acoes:criar', label: 'Criar Novas Ações Manuais' },
       { chave: 'acoes:editar', label: 'Editar Dados do Ticket' },
       { chave: 'acoes:mover', label: 'Mover Cartões (Drag & Drop)' },
-      { chave: 'acoes:excluir', label: 'Excluir Tickets do Kanban' }
+      { chave: 'acoes:excluir', label: 'Excluir Planos de Ação' }
     ]
   },
   {
@@ -966,7 +971,7 @@ const modulosPermissoes = ref([
       { chave: 'clientes:ler', label: 'Visualizar Base de Clientes' },
       { chave: 'clientes:criar', label: 'Cadastrar Novos Clientes/Empresas' },
       { chave: 'clientes:editar', label: 'Editar Clientes/Empresas' },
-      { chave: 'clientes:excluir', label: 'Excluir Registos da Base' }
+      { chave: 'clientes:excluir', label: 'Excluir Registros da Base' }
     ]
   },
   {
@@ -974,7 +979,7 @@ const modulosPermissoes = ref([
     icone: 'pi-send',
     cor: 'text-emerald-500',
     permissoes: [
-      { chave: 'audiencia:ler', label: 'Visualizar Audiência e Histórico' },
+      { chave: 'audiencia:ler', label: 'Visualizar Envios e Histórico' },
       { chave: 'audiencia:disparar', label: 'Realizar Novos Disparos NPS' },
       { chave: 'respostas:ler', label: 'Consultar Respostas Brutas' }
     ]
@@ -1032,7 +1037,7 @@ const carregarDominios = async () => {
 // Adiciona à lista visual (ainda não salva no banco)
 const adicionarDominio = () => {
     let dom = novoDominio.value.toLowerCase().trim();
-    if (dom.startsWith('@')) dom = dom.substring(1); // Remove o @ se o utilizador o digitar
+    if (dom.startsWith('@')) dom = dom.substring(1); // Remove o @ se o usuário o digitar
 
     if (dom && !listaDominios.value.includes(dom)) {
         listaDominios.value.push(dom);
@@ -1062,20 +1067,20 @@ const salvarDominios = async () => {
 };
 
 const excluirUtilizador = async (usuario_id) => {
-  if (!confirm("Tem certeza que deseja excluir permanentemente este utilizador? Esta ação não pode ser desfeita.")) return;
+  if (!confirm("Tem certeza que deseja excluir permanentemente este usuário? Esta ação não pode ser desfeita.")) return;
   
   try {
     await api.delete(`/usuarios/${usuario_id}`);
-    toast.add({ severity: 'success', summary: 'Excluído', detail: 'Utilizador removido do sistema.', life: 3000 });
+    toast.add({ severity: 'success', summary: 'Excluído', detail: 'Usuário removido do sistema.', life: 3000 });
     carregarUtilizadores(); // Atualiza a tabela
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Acesso Negado', detail: error.response?.data?.detail || 'Não foi possível excluir o utilizador.', life: 5000 });
+    toast.add({ severity: 'error', summary: 'Acesso Negado', detail: error.response?.data?.detail || 'Não foi possível excluir o usuário.', life: 5000 });
   }
 };
 
 const reenviarEmailConfirmacao = async (emailUsuario) => {
   try {
-    // Usa a mesma rota que o utilizador usaria no ecrã de login
+    // Usa a mesma rota que o usuário usaria na tela de login
     await api.post('/reenviar-confirmacao', { email: emailUsuario });
     toast.add({ 
       severity: 'success', 
@@ -1178,6 +1183,14 @@ const buscarNoTemplate = (secao) => {
 // 🏢 ADMINISTRAÇÃO DA PLATAFORMA (somente super admin)
 // ==========================================
 const ehSuperAdmin = sessionStorage.getItem('usuario_superadmin') === 'true';
+
+// Modo simples (padrão): só o essencial para PME. O avançado fica salvo no navegador.
+const lerPreferencia = () => { try { return localStorage.getItem('config_modo_avancado') === '1'; } catch (e) { return false; } };
+const modoAvancado = ref(lerPreferencia());
+const alternarModoAvancado = () => {
+  modoAvancado.value = !modoAvancado.value;
+  try { localStorage.setItem('config_modo_avancado', modoAvancado.value ? '1' : '0'); } catch (e) {}
+};
 const contasPlataforma = ref([]);
 const novaConta = ref({ nome: '', admin_nome: '', admin_email: '', admin_senha: '', dominios: '' });
 const criandoConta = ref(false);
@@ -1203,6 +1216,7 @@ const criarContaPlataforma = async () => {
 };
 
 onMounted(() => {
+  carregarUsoIA();
   carregarContasPlataforma();
   carregarConta();
   carregarDadosConfig();
@@ -1231,6 +1245,11 @@ onMounted(() => {
         </h1>
         <p class="text-[12px] text-slate-400 font-bold uppercase tracking-widest mt-1">Ambiente & Infraestrutura</p>
       </div>
+      <button @click="alternarModoAvancado" class="text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl border transition-all"
+        :class="modoAvancado ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-orange-300'">
+        <i class="pi mr-1" :class="modoAvancado ? 'pi-eye-slash' : 'pi-sliders-h'"></i>
+        {{ modoAvancado ? 'Ocultar opções avançadas' : 'Opções avançadas' }}
+      </button>
       <div v-if="carregandoDados || loadingAIConfig" class="text-orange-500 text-[10px] font-black animate-pulse uppercase tracking-widest mt-2 md:mt-0">
         <i class="pi pi-spin pi-spinner mr-2"></i>Sincronizando Banco...
       </div>
@@ -1241,663 +1260,7 @@ onMounted(() => {
       <TabPanel>
         <template #header>
           <div class="flex items-center gap-2 px-2">
-            <i class="pi pi-desktop text-slate-400"></i> <span class="font-bold">Geral</span>
-          </div>
-        </template>
-        <div class="space-y-8 animate-fadein py-4 ">
-          
-          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-            <div class="flex flex-col gap-2 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
-              <label class="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                <i class="pi pi-bolt text-emerald-500 mr-1"></i> Ambiente Detetado (Auto)
-              </label>
-              <div class="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                {{ config.base_url_frontend }}
-              </div>
-              <p class="text-[9px] text-slate-400 font-medium mt-1">
-                O sistema usa esta origem dinamicamente para o redirecionamento de segurança. Não é guardada no banco de dados para evitar conflitos entre Nuvem e Localhost.
-              </p>
-            </div>
-          </div>
-
-          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 group transition-all hover:border-orange-200 dark:hover:border-orange-500/30">
-            <div class="flex items-center gap-5">
-              <div class="w-14 h-14 rounded-2xl bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center border border-orange-100 dark:border-orange-500/20 shrink-0 group-hover:scale-105 transition-transform duration-300">
-                <i class="pi pi-eraser text-orange-500 text-2xl group-hover:rotate-12 transition-transform"></i>
-              </div>
-              <div>
-                <h3 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-[0.1em]">Limpar Cache Local</h3>
-                <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1 leading-relaxed max-w-2xl">
-                  Força a atualização de imagens (como o logotipo), limpa filtros antigos guardados em memória e restaura o desempenho do navegador.
-                </p>
-              </div>
-            </div>
-            <Button 
-              label="Limpar Agora" 
-              icon="pi pi-refresh" 
-              @click="limparCacheNavegador" 
-              class="!bg-white dark:!bg-slate-800 !text-orange-600 dark:!text-orange-400 !border-orange-200 dark:!border-orange-500/30 hover:!bg-orange-50 dark:hover:!bg-orange-500/20 !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 !py-3 w-full md:w-auto shrink-0 shadow-sm transition-all"
-            />
-          </div>
-
-        </div>
-      </TabPanel>
-
-      <TabPanel>
-        <template #header>
-          <div class="flex items-center gap-2 px-2">
-            <i class="pi pi-envelope text-slate-400"></i> <span class="font-bold">E-mail</span>
-          </div>
-        </template>
-        <div class="space-y-8 animate-fadein py-4 ">
-
-          <div class="mb-8 p-6 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-between shadow-sm">
-            <div>
-              <h3 class="text-base font-black text-slate-800 dark:text-white flex items-center gap-2">
-                <i class="pi pi-power-off" :class="config.envios_ativos ? 'text-emerald-500' : 'text-rose-500'"></i> 
-                Motor de Disparos de E-mail
-              </h3>
-              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium max-w-xl">
-                Se desligar esta chave, <span class="text-rose-500 font-bold">NENHUM e-mail de NPS será enviado</span>. 
-                O sistema continuará a calcular as datas, mas as mensagens ficarão retidas até que o motor seja reativado.
-              </p>
-            </div>
-            <div class="flex flex-col items-center gap-2">
-              <InputSwitch v-model="config.envios_ativos" @change="salvarConfigEmail" />
-              
-              <span class="text-[10px] font-black uppercase tracking-widest" :class="config.envios_ativos ? 'text-emerald-500' : 'text-rose-500'">
-                {{ config.envios_ativos ? 'ATIVADO' : 'PAUSADO' }}
-              </span>
-            </div>
-          </div>
-          
-          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 pb-6 border-b border-slate-50 dark:border-slate-800 gap-4">
-              <div>
-                <h3 class="text-sm font-black uppercase text-slate-800 dark:text-white">Envio de E-mails</h3>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Serviço gerenciado pela Rakiti</p>
-              </div>
-              <Tag :value="config.provedor === 'resend' ? 'ATIVO' : 'NÃO CONFIGURADO'"
-                  :severity="config.provedor === 'resend' ? 'success' : 'warning'"
-                  class="!text-[9px] !px-4 !py-2 !rounded-xl !font-black shadow-sm tracking-widest" />
-            </div>
-
-            <div class="space-y-6">
-              <p class="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                Os convites de pesquisa, lembretes e avisos são enviados pela própria plataforma. Não é preciso configurar servidor de e-mail nem conta Microsoft.
-              </p>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="flex flex-col gap-2">
-                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Remetente</label>
-                  <InputText :value="config.remetente_nome ? `${config.remetente_nome} <${config.remetente_email}>` : (config.remetente_email || '—')" readonly class="custom-input !bg-slate-50 dark:!bg-slate-950 !text-[12px]" />
-                </div>
-                <div class="flex flex-col gap-2">
-                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Provedor</label>
-                  <InputText :value="config.provedor === 'resend' ? 'Resend' : 'Não configurado (fale com o suporte)'" readonly class="custom-input !bg-slate-50 dark:!bg-slate-950 !text-[12px]" />
-                </div>
-              </div>
-
-              <div class="pt-6 border-t border-slate-50 dark:border-slate-800">
-                <Button 
-                  label="Enviar E-mail de Teste" 
-                  icon="pi pi-send" 
-                  @click="enviarTeste" 
-                  :loading="enviandoTeste"
-                  class="w-full !bg-transparent !border-2 !border-orange-500/20 !text-orange-500 !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !py-4 hover:!bg-orange-50 dark:hover:!bg-orange-500/10 hover:scale-[1.01] transition-all" 
-                  />
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </TabPanel>
-
-      <TabPanel>
-        <template #header>
-          <div class="flex items-center gap-2 px-2">
-            <i class="pi pi-android text-slate-400"></i><span class="font-bold">IA</span>
-          </div>
-        </template>
-        <div class="space-y-8 animate-fadein py-4 ">
-          
-          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-            <div class="flex justify-between items-start lg:items-center mb-8 pb-6 border-b border-slate-50 dark:border-slate-800 flex-col lg:flex-row gap-4">
-              <div class="flex items-center gap-4 group">
-                <div class="w-12 h-12 rounded-[1.2rem] bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20 shadow-sm group-hover:scale-105 group-hover:bg-emerald-500 group-hover:border-emerald-500 transition-all duration-300">
-                  <svg class="w-6 h-6 text-emerald-600 dark:text-emerald-400 group-hover:text-white transition-colors" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-                    <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A6.0651 6.0651 0 0 0 19.02 19.818a5.9847 5.9847 0 0 0 3.9977-2.9001 6.051 6.051 0 0 0-.7358-7.0967zm-14.5358 1.15l8.6046-4.9658a.4735.4735 0 0 0 .2368-.4114v-1.6384a4.4335 4.4335 0 0 1 2.3023 2.1264 4.3854 4.3854 0 0 1 .4943 2.91 4.4287 4.4287 0 0 1-1.7828 2.5029l-7.3732 4.2526a.4735.4735 0 0 1-.4736 0L1.75 11.23a4.4431 4.4431 0 0 1-.7864-3.1413 4.4093 4.4093 0 0 1 2.0124-2.671 4.4383 4.4383 0 0 1 3.2384-.3676v5.4855a1.6521 1.6521 0 0 0 .8258 1.429zm3.5042-7.394l8.6046 4.9658a.4735.4735 0 0 1 .2368.4114v6.864a4.4335 4.4335 0 0 0-1.808-2.4839 4.3854 4.3854 0 0 0-3.0487-.7146 4.4287 4.4287 0 0 0-2.4347 1.4552l-3.6866 6.386a.4735.4735 0 0 1-.4114.2368H2.174a4.4431 4.4431 0 0 0 2.4578-2.108 4.4093 4.4093 0 0 0 .1786-3.3243 4.4383 4.4383 0 0 0-2.228-2.383L10.05 4.5025a1.6521 1.6521 0 0 1 1.2003-.9256zm-1.8217 12.0031l-8.6046 4.9658a.4735.4735 0 0 0-.2368.4114v1.6384a4.4335 4.4335 0 0 1-2.3023-2.1264 4.3854 4.3854 0 0 1-.4943-2.91 4.4287 4.4287 0 0 1 1.7828-2.5029l7.3732-4.2526a.4735.4735 0 0 1 .4736 0l8.0044 4.6235a4.4431 4.4431 0 0 1 .7864 3.1413 4.4093 4.4093 0 0 1-2.0124 2.671 4.4383 4.4383 0 0 1-3.2384.3676v-5.4855a1.6521 1.6521 0 0 0-.8258-1.429zM12 15.1768a3.1768 3.1768 0 1 1 0-6.3536 3.1768 3.1768 0 0 1 0 6.3536z"/>
-                  </svg>
-                </div>
-                <div class="flex flex-col justify-center">
-                  <h2 class="text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">Integração OpenAI</h2>
-                  <p class="text-[10px] md:text-xs text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest mt-0.5">Motor Preditivo do Magic AI</p>
-                </div>
-              </div>
-              <Button label="Guardar" icon="pi pi-save" @click="salvarConfiguracoesAI" :loading="savingAIConfig" class="w-full lg:w-auto !bg-indigo-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 !py-3 shadow-xl shadow-indigo-500/30 hover:scale-105 transition-transform" />
-            </div>
-
-            <div class="space-y-6 max-w-3xl">
-              <div class="flex flex-col gap-2">
-                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Chave de API (Secret Key)</label>
-                <Password v-model="formConfigAI.openai_api_key" :feedback="false" toggleMask placeholder="sk-..." inputClass="custom-input !text-[12px] w-full" class="w-full" />
-                <small class="text-slate-400 italic font-medium ml-1">Nunca partilhe esta chave. Obtenha uma em platform.openai.com</small>
-              </div>
-              <div class="flex flex-col gap-2">
-                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Motor de Processamento (Modelo)</label>
-                <Dropdown v-model="formConfigAI.openai_model" :options="opcoesModeloIA" optionLabel="label" optionValue="value" class="custom-input !p-0 !text-[12px]" />
-              </div>
-              <div class="flex flex-col gap-2">
-                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Temperatura de Criatividade (0.0 a 1.0)</label>
-                <InputText v-model="formConfigAI.ai_temperature" placeholder="0.4" class="custom-input !text-[12px] w-full md:w-1/3" />
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </TabPanel>
-
-      <TabPanel>
-        <template #header>
-          <div class="flex items-center gap-2 px-2">
-            <i class="pi pi-users text-slate-400"></i> <span class="font-bold">Utilizadores</span>
-          </div>
-        </template>
-        <div class="space-y-8 animate-fadein py-4 ">
-          
-          <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-            
-            <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-6">
-              <div>
-                <h3 class="text-xl font-black italic tracking-tight text-slate-800 dark:text-white flex items-center gap-3">
-                  <i class="pi pi-users text-orange-500"></i> Gestão de Utilizadores
-                </h3>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                  Controle de acessos, cargos e permissões
-                </p>
-              </div>
-              
-              <div class="flex flex-col sm:flex-row gap-3 items-center w-full xl:w-auto bg-slate-50 dark:bg-slate-800/50 p-2 rounded-[1.2rem] border border-slate-100 dark:border-slate-700/50">
-                <div class="relative w-full sm:w-64">
-                  <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                  <InputText placeholder="Procurar utilizador..." class="custom-input !pl-10 !py-2.5 !bg-white dark:!bg-slate-900 w-full !text-xs !border-none shadow-sm" />
-                </div>
-                <div class="hidden sm:block w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
-                <Button icon="pi pi-refresh" @click="carregarUtilizadores" :loading="carregandoUtilizadores" v-tooltip.top="'Atualizar Lista'" class="w-full sm:w-10 h-10 !bg-white dark:!bg-slate-900 !text-slate-400 !border-none !rounded-xl hover:!text-orange-500 transition-colors shadow-sm shrink-0" />
-                <Button label="Novo Utilizador" icon="pi pi-user-plus" @click="abrirNovoUser" class="w-full sm:w-auto !bg-orange-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-5 !py-3 shadow-lg shadow-orange-500/20 hover:scale-105 transition-transform shrink-0" />
-              </div>
-            </div>
-
-            <DataTable :value="utilizadores" responsiveLayout="stack" breakpoint="960px" class="p-datatable-sm custom-table" :rows="10" paginator rowHover>
-              
-              <Column header="Usuário">
-                <template #body="s">
-                  <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0 shadow-sm">
-                      <span class="text-xs font-bold text-slate-600 dark:text-slate-300">
-                        {{ s.data.nome ? s.data.nome.charAt(0).toUpperCase() : 'U' }}
-                      </span>
-                    </div>
-                    
-                    <div class="flex flex-col">
-                      <span class="text-[13px] font-black text-slate-800 dark:text-white leading-tight">
-                        {{ s.data.nome }}
-                      </span>
-                      
-                      <div class="flex items-center gap-2 mt-1">
-                        <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                          {{ s.data.email }}
-                        </span>
-                        
-                        <div v-if="s.data.email_verificado" class="bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center gap-1 border border-emerald-200 dark:border-emerald-500/20" v-tooltip.top="'E-mail Verificado'">
-                          <i class="pi pi-check-circle text-[8px] text-emerald-500"></i>
-                          <span class="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">OK</span>
-                        </div>
-                        
-                        <div v-else class="flex items-center gap-2">
-                          <div class="bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded flex items-center gap-1 border border-amber-200 dark:border-amber-500/20" v-tooltip.top="'Aguardando Confirmação'">
-                            <i class="pi pi-clock text-[8px] text-amber-500"></i>
-                            <span class="text-[8px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest">Pendente</span>
-                          </div>
-                          
-                          <button @click.stop="reenviarEmailConfirmacao(s.data.email)" 
-                                  class="w-5 h-5 rounded flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors shadow-sm"
-                                  v-tooltip.top="'Reenviar link de confirmação'">
-                            <i class="pi pi-envelope text-[10px]"></i>
-                          </button>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-                </template>
-              </Column>
-
-              <Column field="cargo" header="Função">
-                <template #body="s">
-                  <div class="flex items-center gap-2">
-                    <i class="pi pi-briefcase text-slate-300 text-[10px]"></i>
-                    <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300">{{ s.data.cargo || 'Analista' }}</span>
-                  </div>
-                </template>
-              </Column>
-              
-              <Column header="Nível de Acesso">
-                <template #body="s">
-                  <Tag :value="s.data.tipo" :class="s.data.tipo === 'Admin' ? '!bg-rose-50 dark:!bg-rose-500/10 !text-rose-600 dark:!text-rose-400 !border-rose-200 dark:!border-rose-500/20' : '!bg-indigo-50 dark:!bg-indigo-500/10 !text-indigo-600 dark:!text-indigo-400 !border-indigo-200 dark:!border-indigo-500/20'" class="!text-[9px] !font-black !px-3 !py-1 uppercase tracking-widest !rounded-lg border" />
-                </template>
-              </Column>
-              
-              <Column header="Status">
-                <template #body="s">
-                  <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 w-fit px-3 py-1.5 rounded-lg border border-slate-100 dark:border-slate-700/50">
-                    <div :class="['w-2 h-2 rounded-full', s.data.ativo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-slate-400']"></div>
-                    <span class="text-[9px] font-black uppercase tracking-widest" :class="s.data.ativo ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'">{{ s.data.ativo ? 'Ativo' : 'Bloqueado' }}</span>
-                  </div>
-                </template>
-              </Column>
-              
-              <Column field="ultimo_acesso" header="Último Login" sortable>
-                <template #body="{ data }">
-                  <span :class="data.ultimo_acesso ? 'text-slate-500 dark:text-slate-400 font-bold text-[11px]' : 'text-slate-300 italic text-[10px] uppercase tracking-widest font-black'">
-                    {{ formatarDataHora(data.ultimo_acesso) }}
-                  </span>
-                </template>
-              </Column>
-              
-              <Column alignFrozen="right" style="width: 150px">
-                <template #body="s">
-                  <div class="flex gap-2 justify-end">
-                    
-                    <Button icon="pi pi-pencil" @click="prepararEdicaoUser(s.data)" v-tooltip.top="'Editar Usuário'" class="w-9 h-9 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-xs rounded-xl hover:!bg-indigo-50 hover:!text-indigo-500 transition-all shadow-sm" />
-                    
-                    <Button :icon="s.data.ativo ? 'pi pi-lock' : 'pi pi-unlock'" @click="alternarStatus(s.data)" v-tooltip.top="s.data.ativo ? 'Bloquear Acesso' : 'Desbloquear Acesso'" :class="['w-9 h-9 !border-none !text-xs rounded-xl transition-all shadow-sm', s.data.ativo ? '!bg-rose-50 dark:!bg-rose-500/10 !text-rose-500 hover:!bg-rose-500 hover:!text-white' : '!bg-emerald-50 dark:!bg-emerald-500/10 !text-emerald-500 hover:!bg-emerald-500 hover:!text-white']" />
-                    
-                    <Button 
-                      v-if="String(s.data.usuario_id) !== String(idUsuarioLogado)" 
-                      icon="pi pi-trash" 
-                      @click="excluirUtilizador(s.data.usuario_id)" 
-                      v-tooltip.top="'Excluir Definitivamente'" 
-                      class="w-9 h-9 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 hover:!bg-rose-500 hover:!text-white !border-none !text-xs rounded-xl transition-all shadow-sm" 
-                    />
-                  </div>
-                </template>
-              </Column>
-              
-              <template #empty>
-                <div class="flex flex-col items-center justify-center p-12 text-slate-400">
-                  <i class="pi pi-users text-4xl mb-4 opacity-50"></i>
-                  <span class="text-[10px] font-black uppercase tracking-widest">Nenhum usuário encontrado.</span>
-                </div>
-              </template>
-            </DataTable>
-          </div>
-
-        </div>
-      </TabPanel>
-
-      <TabPanel>
-        <template #header>
-          <div class="flex items-center gap-2 px-2">
-            <i class="pi pi-shield text-slate-400"></i> <span class="font-bold">Permissões</span>
-          </div>
-        </template>
-        <div class="space-y-8 animate-fadein py-4 ">
-          
-          <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-            
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-              <div>
-                <h3 class="text-xl font-black italic tracking-tight text-slate-800 dark:text-white flex items-center gap-3">
-                  <i class="pi pi-shield text-indigo-500"></i> Matriz de Acessos
-                </h3>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                  Controle o que cada perfil pode ver e fazer no sistema
-                </p>
-              </div>
-              
-              <Button label="Guardar Matriz" icon="pi pi-check" :loading="savingPermissoes" @click="salvarPermissoes" class="w-full sm:w-auto !bg-indigo-500 hover:!bg-indigo-600 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 !py-3 shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform shrink-0" />
-            </div>
-
-            <div v-if="loadingPermissoes" class="space-y-4">
-               <Skeleton height="3rem" class="rounded-xl mb-4" />
-               <Skeleton height="15rem" class="rounded-xl" />
-            </div>
-
-            <div v-else class="overflow-x-auto custom-scrollbar pb-4">
-              <div class="min-w-[700px]">
-                
-                <div class="grid grid-cols-12 gap-4 mb-4 px-4 items-center bg-slate-50 dark:bg-slate-800/50 py-3 rounded-2xl border border-slate-100 dark:border-slate-700/50">
-                  <div class="col-span-6">
-                    <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">Módulos e Funcionalidades</span>
-                  </div>
-                  <div class="col-span-3 text-center border-l border-slate-200 dark:border-slate-700">
-                    <span class="text-[11px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex flex-col items-center">
-                      <i class="pi pi-eye mb-1"></i> Viewer
-                    </span>
-                  </div>
-                  <div class="col-span-3 text-center border-l border-slate-200 dark:border-slate-700">
-                    <span class="text-[11px] font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 flex flex-col items-center">
-                      <i class="pi pi-briefcase mb-1"></i> Manager
-                    </span>
-                  </div>
-                </div>
-
-                <div v-for="modulo in modulosPermissoes" :key="modulo.nome" class="mb-6">
-                  
-                  <div class="flex items-center gap-2 mb-3 pl-2">
-                    <i :class="['pi', modulo.icone, modulo.cor, 'text-sm']"></i>
-                    <h4 class="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-white">{{ modulo.nome }}</h4>
-                  </div>
-
-                  <div class="flex flex-col gap-1.5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-2 shadow-sm">
-                    
-                    <div v-for="(perm, index) in modulo.permissoes" :key="perm.chave" 
-                         :class="['grid grid-cols-12 gap-4 px-4 py-3 items-center rounded-xl transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50', index !== modulo.permissoes.length - 1 ? 'border-b border-slate-50 dark:border-slate-800/50' : '']">
-                      
-                      <div class="col-span-6 flex flex-col">
-                        <span class="text-xs font-bold text-slate-700 dark:text-slate-300">{{ perm.label }}</span>
-                        <span class="text-[9px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">{{ perm.chave }}</span>
-                      </div>
-
-                      <div class="col-span-3 flex justify-center">
-                        <div class="bg-emerald-50 dark:bg-emerald-500/10 p-2 rounded-lg border border-emerald-100 dark:border-emerald-500/20">
-                          <Checkbox v-model="permissoesAtuais.Viewer" :value="perm.chave" />
-                        </div>
-                      </div>
-
-                      <div class="col-span-3 flex justify-center">
-                        <div class="bg-orange-50 dark:bg-orange-500/10 p-2 rounded-lg border border-orange-100 dark:border-orange-500/20">
-                          <Checkbox v-model="permissoesAtuais.Manager" :value="perm.chave" />
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-
-                </div>
-
-              </div>
-            </div>
-            
-            <div class="mt-4 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl flex items-start gap-3 border border-indigo-100 dark:border-indigo-800/30">
-              <i class="pi pi-info-circle text-indigo-500 mt-0.5"></i>
-              <p class="text-[10px] text-indigo-700 dark:text-indigo-300 font-medium leading-relaxed">
-                <strong>Atenção:</strong> O perfil de <span class="font-black uppercase">Admin</span> não é exibido nesta matriz pois possui nativamente acesso total irrestrito (Bypass) a todos os módulos do sistema. Alterações feitas nesta matriz entram em vigor no próximo login dos utilizadores.
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-      </TabPanel>
-
-      <TabPanel>
-        <template #header>
-          <div class="flex items-center gap-2 px-2">
-            <i class="pi pi-lock text-slate-400"></i> <span class="font-bold">Segurança</span>
-          </div>
-        </template>
-        <div class="space-y-8 animate-fadein py-4 ">
-          
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            <div class="lg:col-span-4 space-y-6">
-              
-              <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-                <h3 class="text-[11px] font-black uppercase text-slate-800 dark:text-white tracking-widest mb-6 flex items-center gap-2">
-                  <i class="pi pi-key text-orange-500"></i> Alterar Senha
-                </h3>
-                <div class="space-y-4">
-                  <div class="flex flex-col gap-1.5">
-                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Senha Atual</label>
-                    <Password v-model="formSenha.atual" toggleMask :feedback="false" inputClass="custom-input !text-[12px] w-full" class="w-full" />
-                  </div>
-                  <div class="flex flex-col gap-1.5">
-                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Nova Senha</label>
-                    <Password v-model="formSenha.nova" toggleMask inputClass="custom-input !text-[12px] w-full" class="w-full" />
-                  </div>
-                  <div class="flex flex-col gap-1.5 pb-4">
-                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Confirmar Nova Senha</label>
-                    <Password v-model="formSenha.confirmacao" toggleMask :feedback="false" inputClass="custom-input !text-[12px] w-full" class="w-full" />
-                  </div>
-                  <Button label="Atualizar Senha" @click="alterarMinhaSenha" :loading="loadingSenha" class="w-full !bg-slate-900 dark:!bg-white dark:!text-slate-900 !text-white !border-none !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !py-4 shadow-xl hover:scale-[1.02] transition-transform" />
-                </div>
-              </div>
-
-              <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-                <div class="flex items-center gap-3 mb-6">
-                    <div class="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
-                        <i class="pi pi-globe text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white leading-none mb-1">Domínios Autorizados</h3>
-                        <p class="text-[10px] text-slate-400 font-bold leading-tight">E-mails permitidos para SSO e Registo</p>
-                    </div>
-                </div>
-
-                <div class="flex gap-3 mb-6">
-                    <div class="relative flex items-center group w-full max-w-md">
-                        <i class="pi pi-at absolute left-4 text-slate-400 z-10 group-focus-within:text-indigo-500 transition-colors" />
-                        <InputText 
-                            v-model="novoDominio" 
-                            @keyup.enter="adicionarDominio" 
-                            placeholder="ex: novatech.com" 
-                            class="custom-input w-full !pl-10" 
-                        />
-                    </div>
-                    <Button 
-                        icon="pi pi-plus" 
-                        @click="adicionarDominio" 
-                        class="!bg-indigo-500 !border-none !w-11 !h-11 !rounded-xl hover:scale-105 transition-transform" 
-                        v-tooltip="'Adicionar Domínio'"
-                    />
-                </div>
-
-                <div class="flex flex-wrap gap-2 mb-8 bg-slate-50 dark:bg-slate-950/50 p-4 rounded-2xl min-h-[5rem] border border-slate-100 dark:border-slate-800">
-                    <div 
-                        v-for="dom in listaDominios" :key="dom" 
-                        class="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm animate-fadein"
-                    >
-                        <span class="text-[11px] font-black text-slate-600 dark:text-slate-300">{{ dom }}</span>
-                        <button 
-                            @click="removerDominio(dom)" 
-                            class="flex items-center justify-center w-5 h-5 rounded-full hover:bg-rose-100 dark:hover:bg-rose-500/20 text-slate-300 hover:text-rose-500 transition-colors cursor-pointer border-none bg-transparent"
-                        >
-                            <i class="pi pi-times text-[9px]"></i>
-                        </button>
-                    </div>
-                    
-                    <div v-if="listaDominios.length === 0" class="flex items-center text-[11px] font-bold text-rose-500 uppercase tracking-widest w-full">
-                        <i class="pi pi-exclamation-triangle mr-2"></i> O acesso está bloqueado para todos.
-                    </div>
-                </div>
-
-                <div class="flex justify-end border-t border-slate-100 dark:border-slate-800 pt-5">
-                    <Button 
-                        label="Guardar Permissões" 
-                        icon="pi pi-shield" 
-                        :loading="salvandoDominios" 
-                        @click="salvarDominios" 
-                        class="!bg-slate-900 dark:!bg-white !text-white dark:!text-slate-900 !rounded-xl !text-[10px] !font-black uppercase tracking-widest !px-6 !py-3 hover:scale-[1.02] transition-transform !border-none w-full" 
-                    />
-                </div>
-              </div>
-
-            </div>
-            
-            <div class="lg:col-span-8 space-y-6">
-              
-              <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                  <div>
-                    <h3 class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-800 dark:text-white">Regras de Acesso</h3>
-                    <p class="text-[9px] text-slate-400 font-bold italic mt-1">Tempo limite de inatividade</p>
-                  </div>
-                </div>
-                <div class="flex flex-col gap-2 max-w-xl">
-                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Tempo de Expiração da Sessão</label>
-                  <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                    <InputNumber v-model="configSeguranca.tempo_minutos" inputId="tempo_sessao" :min="5" :max="1440" suffix=" minutos" class="w-full sm:w-48" inputClass="custom-input !text-[12px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/10" />
-                    <Button label="Guardar Regra" icon="pi pi-save" class="w-full sm:w-auto !bg-indigo-600 !border-none hover:!bg-indigo-700 !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest shadow-xl shadow-indigo-500/30 hover:scale-105 transition-transform px-6 py-4 sm:py-3" @click="salvarSeguranca" :loading="salvandoSeguranca" />
-                  </div>
-                </div>
-              </div>
-
-              <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm h-full">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                  <div>
-                    <h3 class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-800 dark:text-white">Controlo de Dispositivos</h3>
-                    <p class="text-[9px] text-slate-400 font-bold italic mt-1">Sessões ativas no momento</p>
-                  </div>
-                  <Button v-if="sessoesAtivas.length > 1" label="Encerrar Outras Sessões" icon="pi pi-bolt" @click="encerrarTodasAsSessoes" :loading="loadingSessoes" class="w-full md:w-auto !bg-rose-50 dark:!bg-rose-500/10 !text-rose-600 dark:!text-rose-400 !border-none !text-[10px] !font-black !uppercase !tracking-widest !px-6 !py-3 !rounded-xl hover:!bg-rose-600 hover:!text-white transition-all shadow-sm hover:scale-105" />
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div v-for="sessao in sessoesAtivas" :key="sessao.id" class="p-5 rounded-[2rem] border border-slate-50 dark:border-slate-800 flex flex-col gap-4 relative transition-all" :class="sessao.atual ? 'bg-orange-50/30 border-orange-100 shadow-inner' : 'bg-white dark:bg-slate-900 shadow-sm'">
-                    <div class="flex items-center gap-4">
-                      <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0" :class="sessao.atual ? 'bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'">
-                        <i :class="[sessao.dispositivo.includes('iPhone') ? 'pi pi-mobile' : 'pi pi-desktop']"></i>
-                      </div>
-                      <div class="overflow-hidden">
-                        <div class="flex items-center gap-2 flex-wrap">
-                          <h4 class="text-[11px] font-bold text-slate-800 dark:text-white truncate">{{ sessao.dispositivo }}</h4>
-                          <Tag v-if="sessao.atual" value="Este Dispositivo" severity="warning" class="!text-[8px] !px-2 !font-black !uppercase !tracking-widest" />
-                        </div>
-                        <p class="text-[9px] text-slate-400 font-medium tracking-tight truncate">{{ sessao.local }} • {{ sessao.ip }}</p>
-                      </div>
-                    </div>
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-3 border-t border-slate-100 dark:border-slate-800 gap-2">
-                      <span class="text-[9px] font-black text-slate-300 uppercase tracking-widest">{{ sessao.data }}</span>
-                      <Button v-if="!sessao.atual" icon="pi pi-sign-out" label="Revogar" @click="encerrarSessao(sessao.id)" class="!text-[9px] !font-black !p-0 !text-rose-400 !bg-transparent !border-none hover:!text-rose-600 uppercase tracking-widest" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </TabPanel>
-      <TabPanel>
-        <template #header>
-          <div class="flex items-center gap-2 px-2">
-            <i class="pi pi-link text-slate-400"></i> <span class="font-bold">Integrações</span>
-          </div>
-        </template>
-        <div class="space-y-8 animate-fadein py-4 ">
-          
-          <div>
-            <h3 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest mb-1">Integrações de Sistema</h3>
-            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Ligue o Hub de NPS a ferramentas externas como formulários e canais de comunicação.</p>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between relative overflow-hidden group mb-8 shadow-lg">
-              <div class="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-
-              <div class="relative z-10">
-                <div class="flex items-center gap-3 mb-4">
-                  <div class="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center border border-emerald-500/30">
-                    <i class="pi pi-download text-emerald-400 text-xl"></i>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-black text-white">Webhook de Recepção</h4>
-                    <p class="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Ponto de Entrada (Fillout)</p>
-                  </div>
-                </div>
-                
-                <p class="text-xs text-slate-400 leading-relaxed mb-6">
-                  Cole este endereço no webhook do seu formulário (Fillout) para que as respostas cheguem automaticamente ao painel. Ele contém uma chave secreta da sua conta: não compartilhe.
-                </p>
-                
-                <div class="flex flex-col gap-2">
-                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">URL de Escuta (Endpoint)</label>
-                  <div class="flex items-center gap-2">
-                    <div class="relative flex-1">
-                      <i class="pi pi-link absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 z-10" />
-                      <InputText 
-                        :value="webhookFilloutURL" 
-                        readonly 
-                        class="custom-input !w-full !bg-slate-950 !border-slate-800 !text-slate-300 !text-[11px] !pl-10 !font-mono" 
-                      />
-                    </div>
-                    
-                    <Button 
-                      icon="pi pi-copy" 
-                      @click="copiarWebhookFillout" 
-                      class="!bg-slate-800 !text-slate-300 !border-none !rounded-xl !w-11 !h-11 hover:!bg-slate-700 hover:!text-white transition-all shrink-0" 
-                      v-tooltip.top="'Copiar URL'" 
-                    />
-                    
-                    <Button 
-                      icon="pi pi-bolt" 
-                      :loading="testingIncoming"
-                      @click="testarWebhookRecebimento" 
-                      class="!bg-emerald-500/20 !text-emerald-400 !border-none !rounded-xl !w-11 !h-11 hover:!bg-emerald-500 hover:!text-white transition-all shrink-0" 
-                      v-tooltip.top="'Testar Status da Escuta'" 
-                    />
-                    <Button 
-                      icon="pi pi-refresh" 
-                      @click="regenerarWebhook" 
-                      class="!bg-slate-800 !text-slate-300 !border-none !rounded-xl !w-11 !h-11 hover:!bg-rose-600 hover:!text-white transition-all shrink-0" 
-                      v-tooltip.top="'Gerar novo link (invalida o atual)'" 
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col justify-between relative overflow-hidden group shadow-sm">
-              <div class="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><i class="pi pi-microsoft text-9xl text-slate-900 dark:text-white"></i></div>
-              <div>
-                <div class="flex items-center gap-3 mb-4 relative z-10">
-                  <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/20 shadow-sm rounded-xl flex items-center justify-center"><i class="pi pi-microsoft text-indigo-500 text-xl"></i></div>
-                  <div><h4 class="text-sm font-black text-slate-800 dark:text-white">Microsoft Teams</h4><p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Notificações e Alertas</p></div>
-                </div>
-                
-                <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6 relative z-10">
-                  Configure os canais do <strong>Incoming Webhook</strong> para receber os alertas operacionais e técnicos diretamente na sua equipa.
-                </p>
-                
-                <div class="space-y-5 relative z-10">
-                  <div class="flex flex-col gap-2">
-                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">
-                      Canal Global (Feedbacks) <span class="text-orange-500">*</span>
-                    </label>
-                    <InputText 
-                      v-model="integracoesConfig.webhook_global" 
-                      placeholder="https://suaempresa.webhook.office.com/..." 
-                      class="custom-input !w-full !bg-slate-50 dark:!bg-slate-800 !text-[11px]" 
-                    />
-                  </div>
-
-                  <div class="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">
-                      Canal Técnico (DevOps / TI)
-                    </label>
-                    <InputText 
-                      v-model="integracoesConfig.webhook_tecnico" 
-                      placeholder="https://suaempresa.webhook.office.com/..." 
-                      class="custom-input !w-full !bg-slate-50 dark:!bg-slate-800 !text-[11px]" 
-                    />
-                    <p class="text-[9px] text-slate-400 font-medium ml-1 mt-0.5 leading-relaxed">
-                      Recebe notificações de falhas críticas (ex: Timeout na Azure, Banco Offline).
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Button label="Guardar Integrações" icon="pi pi-save" :loading="savingIntegracoes" @click="salvarIntegracoes" class="!bg-slate-900 dark:!bg-white dark:!text-slate-900 !text-white !border-none font-black text-xs uppercase tracking-widest px-6 py-3 shadow-xl hover:-translate-y-0.5 transition-transform" />
-          </div>
-
-        </div>
-      </TabPanel>
-
-      <TabPanel>
-        <template #header>
-          <div class="flex items-center gap-2 px-2">
-            <i class="pi pi-cog text-slate-400"></i> <span class="font-bold">Regras & Operação</span>
+            <i class="pi pi-cog text-slate-400"></i> <span class="font-bold">Pesquisa</span>
           </div>
         </template>
         <div class="space-y-8 animate-fadein py-4 ">
@@ -1910,15 +1273,15 @@ onMounted(() => {
               <div class="flex flex-col gap-4">
                 <div>
                   <h3 class="text-xl font-black italic tracking-tight mb-1 flex items-center gap-3">
-                    <i class="pi pi-bolt text-orange-500"></i> Motor de Disparo <span class="text-orange-500">.</span>
+                    <i class="pi pi-bolt text-orange-500"></i> Envio de Pesquisas <span class="text-orange-500">.</span>
                   </h3>
-                  <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Controlo da fila de espera e execução manual</p>
+                  <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Controle da fila de espera e execução manual</p>
                 </div>
                 
                 <div class="flex items-center gap-3 bg-white/5 border border-white/10 py-2.5 px-4 rounded-xl w-fit backdrop-blur-sm">
                 <InputSwitch v-model="regrasConfig.robo_ativo" @change="salvarRegras" class="scale-90" />
                 <div class="flex flex-col">
-                  <span class="text-[10px] font-black uppercase tracking-widest text-white">Robô Automático</span>
+                  <span class="text-[10px] font-black uppercase tracking-widest text-white">Envio Automático</span>
                   <span class="text-[8.5px] font-bold mt-0.5" :class="regrasConfig.robo_ativo ? 'text-emerald-400' : 'text-rose-400'">
                     {{ regrasConfig.robo_ativo ? 'LIGADO (Disparos em Background)' : 'DESLIGADO (Apenas Disparos Manuais)' }}
                   </span>
@@ -1944,7 +1307,7 @@ onMounted(() => {
 
           <div class="flex items-center gap-4 py-2">
              <div class="h-px bg-slate-200 dark:bg-slate-800 flex-1"></div>
-             <span class="text-[9px] font-black uppercase tracking-widest text-slate-400"><i class="pi pi-sliders-h mr-1"></i> Parâmetros do Robô & SLA</span>
+             <span class="text-[9px] font-black uppercase tracking-widest text-slate-400"><i class="pi pi-sliders-h mr-1"></i> Envio automático e prazos</span>
              <div class="h-px bg-slate-200 dark:bg-slate-800 flex-1"></div>
           </div>
             
@@ -1953,9 +1316,9 @@ onMounted(() => {
               <h3 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest mb-1 flex items-center gap-2">
                 <i class="pi pi-sliders-h text-orange-500"></i> Regras de Negócio
               </h3>
-              <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Controlo absoluto sobre os tempos de resposta, formulários e comunicação com o cliente.</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Controle absoluto sobre os tempos de resposta, formulários e comunicação com o cliente.</p>
             </div>
-            <Button label="Guardar Regras" icon="pi pi-save" :loading="savingRegras" @click="salvarRegras" class="!bg-slate-900 dark:!bg-white dark:!text-slate-900 !text-white !border-none font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl shadow-xl hover:-translate-y-0.5 transition-transform" />
+            <Button label="Salvar Regras" icon="pi pi-save" :loading="savingRegras" @click="salvarRegras" class="!bg-slate-900 dark:!bg-white dark:!text-slate-900 !text-white !border-none font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl shadow-xl hover:-translate-y-0.5 transition-transform" />
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2012,7 +1375,7 @@ onMounted(() => {
 
                   <div class="flex flex-col gap-2 pt-2">
                     <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 flex items-center justify-between">
-                      Injeção de Dados (Hidden Fields)
+                      Dados enviados ao formulário
                       <i class="pi pi-info-circle text-slate-400" v-tooltip.top="'Variáveis invisíveis passadas para a URL do Fillout'"></i>
                     </label>
                     <MultiSelect v-model="regrasConfig.fillout_campos" :options="opcoesCamposFillout" optionLabel="label" optionValue="value" display="chip" placeholder="Selecione as variáveis" class="custom-input !bg-white dark:!bg-slate-900 !py-2 shadow-sm !rounded-xl" />
@@ -2025,7 +1388,7 @@ onMounted(() => {
                   <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500 shadow-sm shrink-0"><i class="pi pi-stopwatch text-lg"></i></div>
                   <div>
                     <h4 class="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-white">Prazos de Resolução</h4>
-                    <p class="text-[9px] text-slate-400 font-medium mt-0.5">SLA de encerramento no Kanban</p>
+                    <p class="text-[9px] text-slate-400 font-medium mt-0.5">Prazo para concluir cada ação</p>
                   </div>
                 </div>
 
@@ -2117,7 +1480,7 @@ onMounted(() => {
                 </div>
                 <div>
                   <h4 class="text-[12px] font-black uppercase tracking-widest text-slate-800 dark:text-white">Resumo Matinal (Teams)</h4>
-                  <p class="text-[10px] text-slate-400 font-medium mt-0.5">Horário de envio automático do Kanban de pendências aos gestores.</p>
+                  <p class="text-[10px] text-slate-400 font-medium mt-0.5">Horário de envio automático do resumo de pendências aos gestores.</p>
                 </div>
               </div>
 
@@ -2134,7 +1497,7 @@ onMounted(() => {
                   @click="salvarRegras"
                   :loading="savingRegras"
                   icon="pi pi-save"
-                  label="Guardar"
+                  label="Salvar"
                   class="w-full sm:w-auto !bg-indigo-600 !text-white !border-none hover:!bg-indigo-700 !px-6 !py-3 !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest shadow-xl shadow-indigo-500/30 hover:scale-105 transition-transform shrink-0"
                 />
               </div>
@@ -2142,7 +1505,7 @@ onMounted(() => {
 
             <div class="md:col-span-2 bg-slate-50 dark:bg-slate-800/40 p-6 md:p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 mb-8 mt-8">
               <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-                <i class="pi pi-images text-orange-500"></i> Gestor de Imagens para E-mails
+                <i class="pi pi-images text-orange-500"></i> Banco de Imagens para E-mails
               </h4>
               
               <div class="flex flex-col gap-4">
@@ -2289,7 +1652,7 @@ onMounted(() => {
                     <div class="flex gap-1.5"><div class="w-3 h-3 rounded-full bg-rose-500"></div><div class="w-3 h-3 rounded-full bg-yellow-500"></div><div class="w-3 h-3 rounded-full bg-emerald-500"></div></div>
                     <div class="w-px h-4 bg-slate-700 mx-2"></div>
                     <i class="pi pi-reply text-emerald-400 text-sm"></i>
-                    <h4 class="text-[11px] font-black uppercase tracking-widest text-white">HTML: Close The Loop</h4>
+                    <h4 class="text-[11px] font-black uppercase tracking-widest text-white">HTML: Retorno ao Cliente</h4>
                   </div>
 
                   <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
@@ -2350,6 +1713,670 @@ onMounted(() => {
         </div>
       </TabPanel>
 
+      <TabPanel>
+        <template #header>
+          <div class="flex items-center gap-2 px-2">
+            <i class="pi pi-envelope text-slate-400"></i> <span class="font-bold">E-mail</span>
+          </div>
+        </template>
+        <div class="space-y-8 animate-fadein py-4 ">
+
+          <div class="mb-8 p-6 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl flex items-center justify-between shadow-sm">
+            <div>
+              <h3 class="text-base font-black text-slate-800 dark:text-white flex items-center gap-2">
+                <i class="pi pi-power-off" :class="config.envios_ativos ? 'text-emerald-500' : 'text-rose-500'"></i> 
+                Envio de Pesquisass de E-mail
+              </h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium max-w-xl">
+                Se desligar esta chave, <span class="text-rose-500 font-bold">NENHUM e-mail de NPS será enviado</span>. 
+                O sistema continuará calculando as datas, mas as mensagens ficarão retidas até que o motor seja reativado.
+              </p>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+              <InputSwitch v-model="config.envios_ativos" @change="salvarConfigEmail" />
+              
+              <span class="text-[10px] font-black uppercase tracking-widest" :class="config.envios_ativos ? 'text-emerald-500' : 'text-rose-500'">
+                {{ config.envios_ativos ? 'ATIVADO' : 'PAUSADO' }}
+              </span>
+            </div>
+          </div>
+          
+          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 pb-6 border-b border-slate-50 dark:border-slate-800 gap-4">
+              <div>
+                <h3 class="text-sm font-black uppercase text-slate-800 dark:text-white">Envio de E-mails</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Serviço gerenciado pela Rakiti</p>
+              </div>
+              <Tag :value="config.provedor === 'resend' ? 'ATIVO' : 'NÃO CONFIGURADO'"
+                  :severity="config.provedor === 'resend' ? 'success' : 'warning'"
+                  class="!text-[9px] !px-4 !py-2 !rounded-xl !font-black shadow-sm tracking-widest" />
+            </div>
+
+            <div class="space-y-6">
+              <p class="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                Os convites de pesquisa, lembretes e avisos são enviados pela própria plataforma. Não é preciso configurar servidor de e-mail nem conta Microsoft.
+              </p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="flex flex-col gap-2">
+                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Remetente</label>
+                  <InputText :value="config.remetente_nome ? `${config.remetente_nome} <${config.remetente_email}>` : (config.remetente_email || '—')" readonly class="custom-input !bg-slate-50 dark:!bg-slate-950 !text-[12px]" />
+                </div>
+                <div class="flex flex-col gap-2">
+                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Provedor</label>
+                  <InputText :value="config.provedor === 'resend' ? 'Resend' : 'Não configurado (fale com o suporte)'" readonly class="custom-input !bg-slate-50 dark:!bg-slate-950 !text-[12px]" />
+                </div>
+              </div>
+
+              <div class="pt-6 border-t border-slate-50 dark:border-slate-800">
+                <Button 
+                  label="Enviar E-mail de Teste" 
+                  icon="pi pi-send" 
+                  @click="enviarTeste" 
+                  :loading="enviandoTeste"
+                  class="w-full !bg-transparent !border-2 !border-orange-500/20 !text-orange-500 !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !py-4 hover:!bg-orange-50 dark:hover:!bg-orange-500/10 hover:scale-[1.01] transition-all" 
+                  />
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </TabPanel>
+
+      <TabPanel>
+        <template #header>
+          <div class="flex items-center gap-2 px-2">
+            <i class="pi pi-users text-slate-400"></i> <span class="font-bold">Equipe</span>
+          </div>
+        </template>
+        <div class="space-y-8 animate-fadein py-4 ">
+          
+          <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+            
+            <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-6">
+              <div>
+                <h3 class="text-xl font-black italic tracking-tight text-slate-800 dark:text-white flex items-center gap-3">
+                  <i class="pi pi-users text-orange-500"></i> Gestão de Usuários
+                </h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                  Controle de acessos, cargos e permissões
+                </p>
+              </div>
+              
+              <div class="flex flex-col sm:flex-row gap-3 items-center w-full xl:w-auto bg-slate-50 dark:bg-slate-800/50 p-2 rounded-[1.2rem] border border-slate-100 dark:border-slate-700/50">
+                <div class="relative w-full sm:w-64">
+                  <i class="pi pi-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                  <InputText placeholder="Procurar usuário..." class="custom-input !pl-10 !py-2.5 !bg-white dark:!bg-slate-900 w-full !text-xs !border-none shadow-sm" />
+                </div>
+                <div class="hidden sm:block w-px h-6 bg-slate-200 dark:bg-slate-700"></div>
+                <Button icon="pi pi-refresh" @click="carregarUtilizadores" :loading="carregandoUtilizadores" v-tooltip.top="'Atualizar Lista'" class="w-full sm:w-10 h-10 !bg-white dark:!bg-slate-900 !text-slate-400 !border-none !rounded-xl hover:!text-orange-500 transition-colors shadow-sm shrink-0" />
+                <Button label="Novo Usuário" icon="pi pi-user-plus" @click="abrirNovoUser" class="w-full sm:w-auto !bg-orange-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-5 !py-3 shadow-lg shadow-orange-500/20 hover:scale-105 transition-transform shrink-0" />
+              </div>
+            </div>
+
+            <DataTable :value="utilizadores" responsiveLayout="stack" breakpoint="960px" class="p-datatable-sm custom-table" :rows="10" paginator rowHover>
+              
+              <Column header="Usuário">
+                <template #body="s">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0 shadow-sm">
+                      <span class="text-xs font-bold text-slate-600 dark:text-slate-300">
+                        {{ s.data.nome ? s.data.nome.charAt(0).toUpperCase() : 'U' }}
+                      </span>
+                    </div>
+                    
+                    <div class="flex flex-col">
+                      <span class="text-[13px] font-black text-slate-800 dark:text-white leading-tight">
+                        {{ s.data.nome }}
+                      </span>
+                      
+                      <div class="flex items-center gap-2 mt-1">
+                        <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                          {{ s.data.email }}
+                        </span>
+                        
+                        <div v-if="s.data.email_verificado" class="bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center gap-1 border border-emerald-200 dark:border-emerald-500/20" v-tooltip.top="'E-mail Verificado'">
+                          <i class="pi pi-check-circle text-[8px] text-emerald-500"></i>
+                          <span class="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">OK</span>
+                        </div>
+                        
+                        <div v-else class="flex items-center gap-2">
+                          <div class="bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded flex items-center gap-1 border border-amber-200 dark:border-amber-500/20" v-tooltip.top="'Aguardando Confirmação'">
+                            <i class="pi pi-clock text-[8px] text-amber-500"></i>
+                            <span class="text-[8px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest">Pendente</span>
+                          </div>
+                          
+                          <button @click.stop="reenviarEmailConfirmacao(s.data.email)" 
+                                  class="w-5 h-5 rounded flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-amber-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors shadow-sm"
+                                  v-tooltip.top="'Reenviar link de confirmação'">
+                            <i class="pi pi-envelope text-[10px]"></i>
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </template>
+              </Column>
+
+              <Column field="cargo" header="Função">
+                <template #body="s">
+                  <div class="flex items-center gap-2">
+                    <i class="pi pi-briefcase text-slate-300 text-[10px]"></i>
+                    <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300">{{ s.data.cargo || 'Analista' }}</span>
+                  </div>
+                </template>
+              </Column>
+              
+              <Column header="Nível de Acesso">
+                <template #body="s">
+                  <Tag :value="s.data.tipo" :class="s.data.tipo === 'Admin' ? '!bg-rose-50 dark:!bg-rose-500/10 !text-rose-600 dark:!text-rose-400 !border-rose-200 dark:!border-rose-500/20' : '!bg-indigo-50 dark:!bg-indigo-500/10 !text-indigo-600 dark:!text-indigo-400 !border-indigo-200 dark:!border-indigo-500/20'" class="!text-[9px] !font-black !px-3 !py-1 uppercase tracking-widest !rounded-lg border" />
+                </template>
+              </Column>
+              
+              <Column header="Status">
+                <template #body="s">
+                  <div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 w-fit px-3 py-1.5 rounded-lg border border-slate-100 dark:border-slate-700/50">
+                    <div :class="['w-2 h-2 rounded-full', s.data.ativo ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-slate-400']"></div>
+                    <span class="text-[9px] font-black uppercase tracking-widest" :class="s.data.ativo ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'">{{ s.data.ativo ? 'Ativo' : 'Bloqueado' }}</span>
+                  </div>
+                </template>
+              </Column>
+              
+              <Column field="ultimo_acesso" header="Último Login" sortable>
+                <template #body="{ data }">
+                  <span :class="data.ultimo_acesso ? 'text-slate-500 dark:text-slate-400 font-bold text-[11px]' : 'text-slate-300 italic text-[10px] uppercase tracking-widest font-black'">
+                    {{ formatarDataHora(data.ultimo_acesso) }}
+                  </span>
+                </template>
+              </Column>
+              
+              <Column alignFrozen="right" style="width: 150px">
+                <template #body="s">
+                  <div class="flex gap-2 justify-end">
+                    
+                    <Button icon="pi pi-pencil" @click="prepararEdicaoUser(s.data)" v-tooltip.top="'Editar Usuário'" class="w-9 h-9 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-xs rounded-xl hover:!bg-indigo-50 hover:!text-indigo-500 transition-all shadow-sm" />
+                    
+                    <Button :icon="s.data.ativo ? 'pi pi-lock' : 'pi pi-unlock'" @click="alternarStatus(s.data)" v-tooltip.top="s.data.ativo ? 'Bloquear Acesso' : 'Desbloquear Acesso'" :class="['w-9 h-9 !border-none !text-xs rounded-xl transition-all shadow-sm', s.data.ativo ? '!bg-rose-50 dark:!bg-rose-500/10 !text-rose-500 hover:!bg-rose-500 hover:!text-white' : '!bg-emerald-50 dark:!bg-emerald-500/10 !text-emerald-500 hover:!bg-emerald-500 hover:!text-white']" />
+                    
+                    <Button 
+                      v-if="String(s.data.usuario_id) !== String(idUsuarioLogado)" 
+                      icon="pi pi-trash" 
+                      @click="excluirUtilizador(s.data.usuario_id)" 
+                      v-tooltip.top="'Excluir Definitivamente'" 
+                      class="w-9 h-9 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 hover:!bg-rose-500 hover:!text-white !border-none !text-xs rounded-xl transition-all shadow-sm" 
+                    />
+                  </div>
+                </template>
+              </Column>
+              
+              <template #empty>
+                <div class="flex flex-col items-center justify-center p-12 text-slate-400">
+                  <i class="pi pi-users text-4xl mb-4 opacity-50"></i>
+                  <span class="text-[10px] font-black uppercase tracking-widest">Nenhum usuário encontrado.</span>
+                </div>
+              </template>
+            </DataTable>
+          </div>
+
+        </div>
+      </TabPanel>
+
+      <TabPanel>
+        <template #header>
+          <div class="flex items-center gap-2 px-2">
+            <i class="pi pi-link text-slate-400"></i> <span class="font-bold">Integrações</span>
+          </div>
+        </template>
+        <div class="space-y-8 animate-fadein py-4 ">
+          
+          <div>
+            <h3 class="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest mb-1">Integrações de Sistema</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Ligue o Hub de NPS a ferramentas externas como formulários e canais de comunicação.</p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between relative overflow-hidden group mb-8 shadow-lg">
+              <div class="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+
+              <div class="relative z-10">
+                <div class="flex items-center gap-3 mb-4">
+                  <div class="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center border border-emerald-500/30">
+                    <i class="pi pi-download text-emerald-400 text-xl"></i>
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-black text-white">Webhook de Recepção</h4>
+                    <p class="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Ponto de Entrada (Fillout)</p>
+                  </div>
+                </div>
+                
+                <p class="text-xs text-slate-400 leading-relaxed mb-6">
+                  Cole este endereço no webhook do seu formulário (Fillout) para que as respostas cheguem automaticamente ao painel. Ele contém uma chave secreta da sua conta: não compartilhe.
+                </p>
+                
+                <div class="flex flex-col gap-2">
+                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">URL de Escuta (Endpoint)</label>
+                  <div class="flex items-center gap-2">
+                    <div class="relative flex-1">
+                      <i class="pi pi-link absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 z-10" />
+                      <InputText 
+                        :value="webhookFilloutURL" 
+                        readonly 
+                        class="custom-input !w-full !bg-slate-950 !border-slate-800 !text-slate-300 !text-[11px] !pl-10 !font-mono" 
+                      />
+                    </div>
+                    
+                    <Button 
+                      icon="pi pi-copy" 
+                      @click="copiarWebhookFillout" 
+                      class="!bg-slate-800 !text-slate-300 !border-none !rounded-xl !w-11 !h-11 hover:!bg-slate-700 hover:!text-white transition-all shrink-0" 
+                      v-tooltip.top="'Copiar URL'" 
+                    />
+                    
+                    <Button 
+                      icon="pi pi-bolt" 
+                      :loading="testingIncoming"
+                      @click="testarWebhookRecebimento" 
+                      class="!bg-emerald-500/20 !text-emerald-400 !border-none !rounded-xl !w-11 !h-11 hover:!bg-emerald-500 hover:!text-white transition-all shrink-0" 
+                      v-tooltip.top="'Testar Status da Escuta'" 
+                    />
+                    <Button 
+                      icon="pi pi-refresh" 
+                      @click="regenerarWebhook" 
+                      class="!bg-slate-800 !text-slate-300 !border-none !rounded-xl !w-11 !h-11 hover:!bg-rose-600 hover:!text-white transition-all shrink-0" 
+                      v-tooltip.top="'Gerar novo link (invalida o atual)'" 
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col justify-between relative overflow-hidden group shadow-sm">
+              <div class="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity"><i class="pi pi-microsoft text-9xl text-slate-900 dark:text-white"></i></div>
+              <div>
+                <div class="flex items-center gap-3 mb-4 relative z-10">
+                  <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/20 shadow-sm rounded-xl flex items-center justify-center"><i class="pi pi-microsoft text-indigo-500 text-xl"></i></div>
+                  <div><h4 class="text-sm font-black text-slate-800 dark:text-white">Microsoft Teams</h4><p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Notificações e Alertas</p></div>
+                </div>
+                
+                <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6 relative z-10">
+                  Configure os canais do <strong>Incoming Webhook</strong> para receber os alertas operacionais e técnicos diretamente na sua equipe.
+                </p>
+                
+                <div class="space-y-5 relative z-10">
+                  <div class="flex flex-col gap-2">
+                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                      Canal Global (Feedbacks) <span class="text-orange-500">*</span>
+                    </label>
+                    <InputText 
+                      v-model="integracoesConfig.webhook_global" 
+                      placeholder="https://suaempresa.webhook.office.com/..." 
+                      class="custom-input !w-full !bg-slate-50 dark:!bg-slate-800 !text-[11px]" 
+                    />
+                  </div>
+
+                  <div class="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                      Canal Técnico (DevOps / TI)
+                    </label>
+                    <InputText 
+                      v-model="integracoesConfig.webhook_tecnico" 
+                      placeholder="https://suaempresa.webhook.office.com/..." 
+                      class="custom-input !w-full !bg-slate-50 dark:!bg-slate-800 !text-[11px]" 
+                    />
+                    <p class="text-[9px] text-slate-400 font-medium ml-1 mt-0.5 leading-relaxed">
+                      Recebe notificações de falhas críticas (ex: Timeout na Azure, Banco Offline).
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Button label="Salvar Integrações" icon="pi pi-save" :loading="savingIntegracoes" @click="salvarIntegracoes" class="!bg-slate-900 dark:!bg-white dark:!text-slate-900 !text-white !border-none font-black text-xs uppercase tracking-widest px-6 py-3 shadow-xl hover:-translate-y-0.5 transition-transform" />
+          </div>
+
+        </div>
+      </TabPanel>
+
+      <TabPanel v-if="modoAvancado">
+        <template #header>
+          <div class="flex items-center gap-2 px-2">
+            <i class="pi pi-android text-slate-400"></i><span class="font-bold">IA</span>
+          </div>
+        </template>
+        <div class="space-y-8 animate-fadein py-4 ">
+          
+          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+            <div class="flex justify-between items-start lg:items-center mb-8 pb-6 border-b border-slate-50 dark:border-slate-800 flex-col lg:flex-row gap-4">
+              <div class="flex items-center gap-4 group">
+                <div class="w-12 h-12 rounded-[1.2rem] bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20 shadow-sm group-hover:scale-105 group-hover:bg-emerald-500 group-hover:border-emerald-500 transition-all duration-300">
+                  <svg class="w-6 h-6 text-emerald-600 dark:text-emerald-400 group-hover:text-white transition-colors" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+                    <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A6.0651 6.0651 0 0 0 19.02 19.818a5.9847 5.9847 0 0 0 3.9977-2.9001 6.051 6.051 0 0 0-.7358-7.0967zm-14.5358 1.15l8.6046-4.9658a.4735.4735 0 0 0 .2368-.4114v-1.6384a4.4335 4.4335 0 0 1 2.3023 2.1264 4.3854 4.3854 0 0 1 .4943 2.91 4.4287 4.4287 0 0 1-1.7828 2.5029l-7.3732 4.2526a.4735.4735 0 0 1-.4736 0L1.75 11.23a4.4431 4.4431 0 0 1-.7864-3.1413 4.4093 4.4093 0 0 1 2.0124-2.671 4.4383 4.4383 0 0 1 3.2384-.3676v5.4855a1.6521 1.6521 0 0 0 .8258 1.429zm3.5042-7.394l8.6046 4.9658a.4735.4735 0 0 1 .2368.4114v6.864a4.4335 4.4335 0 0 0-1.808-2.4839 4.3854 4.3854 0 0 0-3.0487-.7146 4.4287 4.4287 0 0 0-2.4347 1.4552l-3.6866 6.386a.4735.4735 0 0 1-.4114.2368H2.174a4.4431 4.4431 0 0 0 2.4578-2.108 4.4093 4.4093 0 0 0 .1786-3.3243 4.4383 4.4383 0 0 0-2.228-2.383L10.05 4.5025a1.6521 1.6521 0 0 1 1.2003-.9256zm-1.8217 12.0031l-8.6046 4.9658a.4735.4735 0 0 0-.2368.4114v1.6384a4.4335 4.4335 0 0 1-2.3023-2.1264 4.3854 4.3854 0 0 1-.4943-2.91 4.4287 4.4287 0 0 1 1.7828-2.5029l7.3732-4.2526a.4735.4735 0 0 1 .4736 0l8.0044 4.6235a4.4431 4.4431 0 0 1 .7864 3.1413 4.4093 4.4093 0 0 1-2.0124 2.671 4.4383 4.4383 0 0 1-3.2384.3676v-5.4855a1.6521 1.6521 0 0 0-.8258-1.429zM12 15.1768a3.1768 3.1768 0 1 1 0-6.3536 3.1768 3.1768 0 0 1 0 6.3536z"/>
+                  </svg>
+                </div>
+                <div class="flex flex-col justify-center">
+                  <h2 class="text-sm md:text-base font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">Inteligência Artificial</h2>
+                  <p class="text-[10px] md:text-xs text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest mt-0.5">Análises automáticas das respostas</p>
+                </div>
+              </div>
+              <Button label="Salvar" icon="pi pi-save" @click="salvarConfiguracoesAI" :loading="savingAIConfig" class="w-full lg:w-auto !bg-indigo-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 !py-3 shadow-xl shadow-indigo-500/30 hover:scale-105 transition-transform" />
+            </div>
+
+            <div class="space-y-6 max-w-3xl">
+              <div class="flex flex-col gap-3 p-5 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-500/5">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] font-black text-indigo-500 uppercase tracking-widest">IA incluída no seu plano</span>
+                  <Tag :value="usoIA.ativa ? 'ATIVA' : 'INDISPONÍVEL'" :severity="usoIA.ativa ? 'success' : 'warning'" class="!text-[9px] !font-black" />
+                </div>
+                <p class="text-xs text-slate-600 dark:text-slate-300">
+                  Análises usadas este mês: <strong>{{ usoIA.usadas }}</strong> de <strong>{{ usoIA.limite }}</strong>
+                </p>
+                <div class="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                  <div class="h-full bg-indigo-500 rounded-full" :style="{ width: Math.min(100, (usoIA.usadas / (usoIA.limite || 1)) * 100) + '%' }"></div>
+                </div>
+                <small class="text-slate-400 font-medium">Não é preciso configurar chave. Se o limite acabar, fale com o suporte para ampliar.</small>
+              </div>
+              <div class="flex flex-col gap-2">
+                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Motor de Processamento (Modelo)</label>
+                <Dropdown v-model="formConfigAI.openai_model" :options="opcoesModeloIA" optionLabel="label" optionValue="value" class="custom-input !p-0 !text-[12px]" />
+              </div>
+              <div class="flex flex-col gap-2">
+                <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Temperatura de Criatividade (0.0 a 1.0)</label>
+                <InputText v-model="formConfigAI.ai_temperature" placeholder="0.4" class="custom-input !text-[12px] w-full md:w-1/3" />
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </TabPanel>
+
+      <TabPanel v-if="modoAvancado">
+        <template #header>
+          <div class="flex items-center gap-2 px-2">
+            <i class="pi pi-shield text-slate-400"></i> <span class="font-bold">Permissões</span>
+          </div>
+        </template>
+        <div class="space-y-8 animate-fadein py-4 ">
+          
+          <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+            
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+              <div>
+                <h3 class="text-xl font-black italic tracking-tight text-slate-800 dark:text-white flex items-center gap-3">
+                  <i class="pi pi-shield text-indigo-500"></i> Matriz de Acessos
+                </h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                  Controle o que cada perfil pode ver e fazer no sistema
+                </p>
+              </div>
+              
+              <Button label="Salvar Matriz" icon="pi pi-check" :loading="savingPermissoes" @click="salvarPermissoes" class="w-full sm:w-auto !bg-indigo-500 hover:!bg-indigo-600 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 !py-3 shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform shrink-0" />
+            </div>
+
+            <div v-if="loadingPermissoes" class="space-y-4">
+               <Skeleton height="3rem" class="rounded-xl mb-4" />
+               <Skeleton height="15rem" class="rounded-xl" />
+            </div>
+
+            <div v-else class="overflow-x-auto custom-scrollbar pb-4">
+              <div class="min-w-[700px]">
+                
+                <div class="grid grid-cols-12 gap-4 mb-4 px-4 items-center bg-slate-50 dark:bg-slate-800/50 py-3 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                  <div class="col-span-6">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-slate-500">Módulos e Funcionalidades</span>
+                  </div>
+                  <div class="col-span-3 text-center border-l border-slate-200 dark:border-slate-700">
+                    <span class="text-[11px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex flex-col items-center">
+                      <i class="pi pi-eye mb-1"></i> Viewer
+                    </span>
+                  </div>
+                  <div class="col-span-3 text-center border-l border-slate-200 dark:border-slate-700">
+                    <span class="text-[11px] font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 flex flex-col items-center">
+                      <i class="pi pi-briefcase mb-1"></i> Manager
+                    </span>
+                  </div>
+                </div>
+
+                <div v-for="modulo in modulosPermissoes" :key="modulo.nome" class="mb-6">
+                  
+                  <div class="flex items-center gap-2 mb-3 pl-2">
+                    <i :class="['pi', modulo.icone, modulo.cor, 'text-sm']"></i>
+                    <h4 class="text-[11px] font-black uppercase tracking-widest text-slate-700 dark:text-white">{{ modulo.nome }}</h4>
+                  </div>
+
+                  <div class="flex flex-col gap-1.5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-2 shadow-sm">
+                    
+                    <div v-for="(perm, index) in modulo.permissoes" :key="perm.chave" 
+                         :class="['grid grid-cols-12 gap-4 px-4 py-3 items-center rounded-xl transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50', index !== modulo.permissoes.length - 1 ? 'border-b border-slate-50 dark:border-slate-800/50' : '']">
+                      
+                      <div class="col-span-6 flex flex-col">
+                        <span class="text-xs font-bold text-slate-700 dark:text-slate-300">{{ perm.label }}</span>
+                        <span class="text-[9px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">{{ perm.chave }}</span>
+                      </div>
+
+                      <div class="col-span-3 flex justify-center">
+                        <div class="bg-emerald-50 dark:bg-emerald-500/10 p-2 rounded-lg border border-emerald-100 dark:border-emerald-500/20">
+                          <Checkbox v-model="permissoesAtuais.Viewer" :value="perm.chave" />
+                        </div>
+                      </div>
+
+                      <div class="col-span-3 flex justify-center">
+                        <div class="bg-orange-50 dark:bg-orange-500/10 p-2 rounded-lg border border-orange-100 dark:border-orange-500/20">
+                          <Checkbox v-model="permissoesAtuais.Manager" :value="perm.chave" />
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+            </div>
+            
+            <div class="mt-4 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl flex items-start gap-3 border border-indigo-100 dark:border-indigo-800/30">
+              <i class="pi pi-info-circle text-indigo-500 mt-0.5"></i>
+              <p class="text-[10px] text-indigo-700 dark:text-indigo-300 font-medium leading-relaxed">
+                <strong>Atenção:</strong> O perfil de <span class="font-black uppercase">Admin</span> não é exibido nesta matriz pois possui nativamente acesso total irrestrito (Bypass) a todos os módulos do sistema. Alterações feitas nesta matriz entram em vigor no próximo login dos usuários.
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+      </TabPanel>
+
+      <TabPanel v-if="modoAvancado">
+        <template #header>
+          <div class="flex items-center gap-2 px-2">
+            <i class="pi pi-lock text-slate-400"></i> <span class="font-bold">Segurança</span>
+          </div>
+        </template>
+        <div class="space-y-8 animate-fadein py-4 ">
+          
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-4 space-y-6">
+              
+              <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+                <h3 class="text-[11px] font-black uppercase text-slate-800 dark:text-white tracking-widest mb-6 flex items-center gap-2">
+                  <i class="pi pi-key text-orange-500"></i> Alterar Senha
+                </h3>
+                <div class="space-y-4">
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Senha Atual</label>
+                    <Password v-model="formSenha.atual" toggleMask :feedback="false" inputClass="custom-input !text-[12px] w-full" class="w-full" />
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Nova Senha</label>
+                    <Password v-model="formSenha.nova" toggleMask inputClass="custom-input !text-[12px] w-full" class="w-full" />
+                  </div>
+                  <div class="flex flex-col gap-1.5 pb-4">
+                    <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Confirmar Nova Senha</label>
+                    <Password v-model="formSenha.confirmacao" toggleMask :feedback="false" inputClass="custom-input !text-[12px] w-full" class="w-full" />
+                  </div>
+                  <Button label="Atualizar Senha" @click="alterarMinhaSenha" :loading="loadingSenha" class="w-full !bg-slate-900 dark:!bg-white dark:!text-slate-900 !text-white !border-none !rounded-2xl !text-[10px] !font-black !uppercase !tracking-widest !py-4 shadow-xl hover:scale-[1.02] transition-transform" />
+                </div>
+              </div>
+
+              <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+                <div class="flex items-center gap-3 mb-6">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
+                        <i class="pi pi-globe text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white leading-none mb-1">Domínios Autorizados</h3>
+                        <p class="text-[10px] text-slate-400 font-bold leading-tight">E-mails permitidos para SSO e Registro</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mb-6">
+                    <div class="relative flex items-center group w-full max-w-md">
+                        <i class="pi pi-at absolute left-4 text-slate-400 z-10 group-focus-within:text-indigo-500 transition-colors" />
+                        <InputText 
+                            v-model="novoDominio" 
+                            @keyup.enter="adicionarDominio" 
+                            placeholder="ex: novatech.com" 
+                            class="custom-input w-full !pl-10" 
+                        />
+                    </div>
+                    <Button 
+                        icon="pi pi-plus" 
+                        @click="adicionarDominio" 
+                        class="!bg-indigo-500 !border-none !w-11 !h-11 !rounded-xl hover:scale-105 transition-transform" 
+                        v-tooltip="'Adicionar Domínio'"
+                    />
+                </div>
+
+                <div class="flex flex-wrap gap-2 mb-8 bg-slate-50 dark:bg-slate-950/50 p-4 rounded-2xl min-h-[5rem] border border-slate-100 dark:border-slate-800">
+                    <div 
+                        v-for="dom in listaDominios" :key="dom" 
+                        class="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm animate-fadein"
+                    >
+                        <span class="text-[11px] font-black text-slate-600 dark:text-slate-300">{{ dom }}</span>
+                        <button 
+                            @click="removerDominio(dom)" 
+                            class="flex items-center justify-center w-5 h-5 rounded-full hover:bg-rose-100 dark:hover:bg-rose-500/20 text-slate-300 hover:text-rose-500 transition-colors cursor-pointer border-none bg-transparent"
+                        >
+                            <i class="pi pi-times text-[9px]"></i>
+                        </button>
+                    </div>
+                    
+                    <div v-if="listaDominios.length === 0" class="flex items-center text-[11px] font-bold text-rose-500 uppercase tracking-widest w-full">
+                        <i class="pi pi-exclamation-triangle mr-2"></i> O acesso está bloqueado para todos.
+                    </div>
+                </div>
+
+                <div class="flex justify-end border-t border-slate-100 dark:border-slate-800 pt-5">
+                    <Button 
+                        label="Salvar Permissões" 
+                        icon="pi pi-shield" 
+                        :loading="salvandoDominios" 
+                        @click="salvarDominios" 
+                        class="!bg-slate-900 dark:!bg-white !text-white dark:!text-slate-900 !rounded-xl !text-[10px] !font-black uppercase tracking-widest !px-6 !py-3 hover:scale-[1.02] transition-transform !border-none w-full" 
+                    />
+                </div>
+              </div>
+
+            </div>
+            
+            <div class="lg:col-span-8 space-y-6">
+              
+              <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                  <div>
+                    <h3 class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-800 dark:text-white">Regras de Acesso</h3>
+                    <p class="text-[9px] text-slate-400 font-bold italic mt-1">Tempo limite de inatividade</p>
+                  </div>
+                </div>
+                <div class="flex flex-col gap-2 max-w-xl">
+                  <label class="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Tempo de Expiração da Sessão</label>
+                  <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                    <InputNumber v-model="configSeguranca.tempo_minutos" inputId="tempo_sessao" :min="5" :max="1440" suffix=" minutos" class="w-full sm:w-48" inputClass="custom-input !text-[12px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/10" />
+                    <Button label="Salvar Regra" icon="pi pi-save" class="w-full sm:w-auto !bg-indigo-600 !border-none hover:!bg-indigo-700 !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest shadow-xl shadow-indigo-500/30 hover:scale-105 transition-transform px-6 py-4 sm:py-3" @click="salvarSeguranca" :loading="salvandoSeguranca" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm h-full">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                  <div>
+                    <h3 class="text-[11px] font-black uppercase tracking-[0.2em] text-slate-800 dark:text-white">Controle de Dispositivos</h3>
+                    <p class="text-[9px] text-slate-400 font-bold italic mt-1">Sessões ativas no momento</p>
+                  </div>
+                  <Button v-if="sessoesAtivas.length > 1" label="Encerrar Outras Sessões" icon="pi pi-bolt" @click="encerrarTodasAsSessoes" :loading="loadingSessoes" class="w-full md:w-auto !bg-rose-50 dark:!bg-rose-500/10 !text-rose-600 dark:!text-rose-400 !border-none !text-[10px] !font-black !uppercase !tracking-widest !px-6 !py-3 !rounded-xl hover:!bg-rose-600 hover:!text-white transition-all shadow-sm hover:scale-105" />
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div v-for="sessao in sessoesAtivas" :key="sessao.id" class="p-5 rounded-[2rem] border border-slate-50 dark:border-slate-800 flex flex-col gap-4 relative transition-all" :class="sessao.atual ? 'bg-orange-50/30 border-orange-100 shadow-inner' : 'bg-white dark:bg-slate-900 shadow-sm'">
+                    <div class="flex items-center gap-4">
+                      <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0" :class="sessao.atual ? 'bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'">
+                        <i :class="[sessao.dispositivo.includes('iPhone') ? 'pi pi-mobile' : 'pi pi-desktop']"></i>
+                      </div>
+                      <div class="overflow-hidden">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <h4 class="text-[11px] font-bold text-slate-800 dark:text-white truncate">{{ sessao.dispositivo }}</h4>
+                          <Tag v-if="sessao.atual" value="Este Dispositivo" severity="warning" class="!text-[8px] !px-2 !font-black !uppercase !tracking-widest" />
+                        </div>
+                        <p class="text-[9px] text-slate-400 font-medium tracking-tight truncate">{{ sessao.local }} • {{ sessao.ip }}</p>
+                      </div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-3 border-t border-slate-100 dark:border-slate-800 gap-2">
+                      <span class="text-[9px] font-black text-slate-300 uppercase tracking-widest">{{ sessao.data }}</span>
+                      <Button v-if="!sessao.atual" icon="pi pi-sign-out" label="Revogar" @click="encerrarSessao(sessao.id)" class="!text-[9px] !font-black !p-0 !text-rose-400 !bg-transparent !border-none hover:!text-rose-600 uppercase tracking-widest" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </TabPanel>
+      <TabPanel v-if="modoAvancado">
+        <template #header>
+          <div class="flex items-center gap-2 px-2">
+            <i class="pi pi-desktop text-slate-400"></i> <span class="font-bold">Geral</span>
+          </div>
+        </template>
+        <div class="space-y-8 animate-fadein py-4 ">
+          
+          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm">
+            <div class="flex flex-col gap-2 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+              <label class="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <i class="pi pi-bolt text-emerald-500 mr-1"></i> Ambiente Detectado (Auto)
+              </label>
+              <div class="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                {{ config.base_url_frontend }}
+              </div>
+              <p class="text-[9px] text-slate-400 font-medium mt-1">
+                O sistema usa esta origem dinamicamente para o redirecionamento de segurança. Não é salva no banco de dados para evitar conflitos entre Nuvem e Localhost.
+              </p>
+            </div>
+          </div>
+
+          <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6 group transition-all hover:border-orange-200 dark:hover:border-orange-500/30">
+            <div class="flex items-center gap-5">
+              <div class="w-14 h-14 rounded-2xl bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center border border-orange-100 dark:border-orange-500/20 shrink-0 group-hover:scale-105 transition-transform duration-300">
+                <i class="pi pi-eraser text-orange-500 text-2xl group-hover:rotate-12 transition-transform"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-[0.1em]">Limpar Cache Local</h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1 leading-relaxed max-w-2xl">
+                  Força a atualização de imagens (como o logotipo), limpa filtros antigos salvos em memória e restaura o desempenho do navegador.
+                </p>
+              </div>
+            </div>
+            <Button 
+              label="Limpar Agora" 
+              icon="pi pi-refresh" 
+              @click="limparCacheNavegador" 
+              class="!bg-white dark:!bg-slate-800 !text-orange-600 dark:!text-orange-400 !border-orange-200 dark:!border-orange-500/30 hover:!bg-orange-50 dark:hover:!bg-orange-500/20 !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 !py-3 w-full md:w-auto shrink-0 shadow-sm transition-all"
+            />
+          </div>
+
+        </div>
+      </TabPanel>
+
       <TabPanel v-if="ehSuperAdmin">
         <template #header>
           <div class="flex items-center gap-2 px-2">
@@ -2402,7 +2429,7 @@ onMounted(() => {
       </TabPanel>
     </TabView>
 
-    <Dialog v-model:visible="usuarioDialog" :header="editandoUser ? 'Editar Utilizador' : 'Novo Utilizador'" :modal="true" class="custom-dialog w-[95vw] sm:w-[80vw] md:w-[60vw] lg:w-[50vw] max-w-2xl">
+    <Dialog v-model:visible="usuarioDialog" :header="editandoUser ? 'Editar Usuário' : 'Novo Usuário'" :modal="true" class="custom-dialog w-[95vw] sm:w-[80vw] md:w-[60vw] lg:w-[50vw] max-w-2xl">
       <div class="p-2 sm:p-6 space-y-8">
         
         <div class="bg-slate-50 dark:bg-slate-800/40 p-6 rounded-2xl border border-slate-100 dark:border-slate-700/50">
@@ -2437,7 +2464,7 @@ onMounted(() => {
             </div>
             
             <div class="flex flex-col gap-1.5">
-              <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">Estado da Conta</label>
+              <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">Status da Conta</label>
               <div class="flex items-center gap-3 bg-white dark:bg-slate-900 h-[48px] px-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <InputSwitch v-model="usuario.ativo" />
                 <span class="text-[11px] font-black uppercase tracking-widest" :class="usuario.ativo ? 'text-emerald-500' : 'text-slate-400'">
@@ -2448,12 +2475,12 @@ onMounted(() => {
           </div>
 
           <div v-if="editandoUser && !mostrarTrocaSenha" class="pt-2 border-t border-indigo-100 dark:border-indigo-800/30">
-            <Button label="Redefinir Palavra-passe" icon="pi pi-key" class="!bg-transparent !text-indigo-600 dark:!text-indigo-400 hover:!bg-indigo-100 dark:hover:!bg-indigo-900/30 !border-none !rounded-lg !text-[10px] !font-black uppercase tracking-widest transition-colors" @click="mostrarTrocaSenha = true" />
+            <Button label="Redefinir Senha" icon="pi pi-key" class="!bg-transparent !text-indigo-600 dark:!text-indigo-400 hover:!bg-indigo-100 dark:hover:!bg-indigo-900/30 !border-none !rounded-lg !text-[10px] !font-black uppercase tracking-widest transition-colors" @click="mostrarTrocaSenha = true" />
           </div>
           
           <div v-if="!editandoUser || mostrarTrocaSenha" class="flex flex-col gap-1.5 animate-fade-in pt-2">
             <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">
-              {{ editandoUser ? 'Nova Palavra-passe' : 'Palavra-passe Inicial' }}
+              {{ editandoUser ? 'Nova Senha' : 'Senha Inicial' }}
             </label>
             <div class="flex gap-2">
               <Password v-model="usuario.password" toggleMask :feedback="false" class="flex-1" inputClass="custom-input !py-3 w-full" placeholder="Mínimo 8 caracteres" />
@@ -2466,7 +2493,7 @@ onMounted(() => {
       <template #footer>
         <div class="flex gap-3 justify-end px-6 pb-6 pt-2">
           <Button label="Cancelar" icon="pi pi-times" class="!bg-transparent !text-slate-500 hover:!bg-slate-100 dark:hover:!bg-slate-800 !border-none !font-black !text-[10px] uppercase tracking-widest" @click="usuarioDialog = false" />
-          <Button :label="editandoUser ? 'Atualizar Perfil' : 'Criar Utilizador'" icon="pi pi-check" :loading="submetendoUser" class="!bg-orange-500 hover:!bg-orange-600 !text-white !border-none !rounded-xl !px-6 !py-3 !font-black !uppercase !text-[10px] tracking-widest hover:scale-105 transition-transform shadow-lg shadow-orange-500/20" @click="salvarUtilizador" />
+          <Button :label="editandoUser ? 'Atualizar Perfil' : 'Criar Usuário'" icon="pi pi-check" :loading="submetendoUser" class="!bg-orange-500 hover:!bg-orange-600 !text-white !border-none !rounded-xl !px-6 !py-3 !font-black !uppercase !text-[10px] tracking-widest hover:scale-105 transition-transform shadow-lg shadow-orange-500/20" @click="salvarUtilizador" />
         </div>
       </template>
     </Dialog>

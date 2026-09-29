@@ -347,7 +347,7 @@ const dispararLote = async () => {
   
   try {
     await api.post('/clientes/forcar-envio-lote', { cliente_ids: idsParaEnvio });
-    toast.add({ severity: 'info', summary: 'Trabalho em curso! 🛠️', detail: `Estamos a processar o envio para ${total} contatos ativos. Pode continuar a navegar.`, life: 8000 });
+    toast.add({ severity: 'info', summary: 'Trabalho em curso! 🛠️', detail: `Estamos processando o envio para ${total} contatos ativos. Pode continuar navegando.`, life: 8000 });
     
     // Confirma visualmente
     clientes.value.forEach(c => {
@@ -465,7 +465,7 @@ onUnmounted(() => {
     <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
       <div>
         <h1 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight italic">
-          Audiência <span class="text-orange-500">.</span>
+          Envios <span class="text-orange-500">.</span>
         </h1>
         <div class="flex items-center gap-3 mt-2">
           <p class="text-[13px] text-slate-500 dark:text-slate-400 font-medium">Olhe a base de contatos e dispare pesquisas.</p>
@@ -489,7 +489,7 @@ onUnmounted(() => {
           v-tooltip.top="'Configurar Régua de Disparo'" 
         />
         <Button v-if="temPermissao('audiencia:disparar')" :label="clientesSelecionados.length > 0 ? `Disparar para ${clientesSelecionados.length}` : 'Disparo em Lote'" icon="pi pi-send" @click="dispararLote" :loading="enviandoEmail" class="bg-slate-900 dark:bg-white dark:text-slate-900 border-none rounded-xl px-5 py-2.5 text-xs font-black text-white shadow-xl hover:-translate-y-0.5 transition-transform shrink-0" />
-        <Button v-if="temPermissao('clientes:criar')" label="Nova Pessoa" icon="pi pi-plus" @click="abrirNovo" class="bg-orange-500 border-none rounded-xl px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-orange-500/30 hover:-translate-y-0.5 transition-transform shrink-0" />
+        <Button v-if="temPermissao('clientes:criar')" label="Novo Contato" icon="pi pi-plus" @click="abrirNovo" class="bg-orange-500 border-none rounded-xl px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-orange-500/30 hover:-translate-y-0.5 transition-transform shrink-0" />
       </div>
     </div>
 
@@ -501,7 +501,7 @@ onUnmounted(() => {
           </div>
           <div class="flex flex-col">
             <h2 class="text-lg font-black text-slate-900 dark:text-white leading-none tracking-tight">Guia da Tela</h2>
-            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Audiência & Disparos</span>
+            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Envios de Pesquisa</span>
           </div>
         </div>
       </template>
@@ -520,7 +520,7 @@ onUnmounted(() => {
           </p>
           <ul class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed list-disc pl-4 flex flex-col gap-1">
             <li><strong>Manual/Lote:</strong> Selecione os clientes usando as caixas à esquerda e clique em "Disparo em Lote" no topo da tela.</li>
-            <li><strong>Robô Automático:</strong> Se ativado nas configurações, o robô lerá a coluna <em>"Próximo"</em> diariamente e fará o envio sozinho.</li>
+            <li><strong>Envio Automático:</strong> Se ativado nas configurações, o robô lerá a coluna <em>"Próximo"</em> diariamente e fará o envio sozinho.</li>
           </ul>
         </div>
 
@@ -606,12 +606,12 @@ onUnmounted(() => {
       <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pl-2 md:pl-3">
 
         <div class="md:col-span-3 flex flex-col gap-1 pr-2">
-          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-sitemap text-[8px]"></i> Companhia</span>
+          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-sitemap text-[8px]"></i> Grupo</span>
           <Dropdown v-model="filtroCompanhia" :options="companhias" optionLabel="label" optionValue="value" placeholder="Todas" class="custom-minimal-element w-full" />
         </div>
 
         <div class="md:col-span-3 flex flex-col gap-1 md:border-l border-slate-100 dark:border-slate-800 md:pl-4 pr-2">
-          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-users text-[8px]"></i> Gestor</span>
+          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-users text-[8px]"></i> Responsável</span>
           <Dropdown v-model="filtroGestor" :options="gestores" optionLabel="label" optionValue="value" placeholder="Todos" filter class="custom-minimal-element w-full" />
         </div>
 
@@ -645,7 +645,7 @@ onUnmounted(() => {
         
         <Column selectionMode="multiple" headerStyle="width: 3rem"></Column>
         
-        <Column field="nome" header="Pessoa" sortable style="min-width: 220px">
+        <Column field="nome" header="Contato" sortable style="min-width: 220px">
           <template #body="slotProps">
             <div class="flex items-center gap-3">
               <div class="w-8 h-8 rounded-lg bg-orange-50 dark:bg-slate-800 text-orange-500 dark:text-slate-300 font-black flex items-center justify-center shrink-0 border border-orange-100 dark:border-slate-700 text-[10px]">{{ gerarIniciais(slotProps.data.nome) }}</div>
@@ -659,7 +659,7 @@ onUnmounted(() => {
             <div class="flex justify-center items-center h-full">
               <div v-if="slotProps.data.tem_acao_pendente" 
                   class="relative flex items-center justify-center"
-                  v-tooltip.top="'Este cliente possui ações pendentes no Kanban.'">
+                  v-tooltip.top="'Este cliente possui ações pendentes nos Planos de Ação.'">
                 <span class="animate-ping absolute inline-flex h-6 w-6 rounded-full bg-amber-400 opacity-30"></span>
                 <i class="pi pi-bolt text-amber-500 text-lg z-10"></i>
               </div>
@@ -669,7 +669,7 @@ onUnmounted(() => {
           </template>
         </Column>
 
-        <Column field="empresa" header="Conta & Função" sortable style="min-width: 180px">
+        <Column field="empresa" header="Empresa e Cargo" sortable style="min-width: 180px">
           <template #body="slotProps">
             <div class="flex flex-col items-start gap-1">
               <span class="text-[12px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">{{ slotProps.data.empresa || 'Sem Empresa' }}</span>
@@ -681,20 +681,20 @@ onUnmounted(() => {
           </template>
         </Column>
 
-        <Column field="gestor" header="Gestor da Conta" sortable style="min-width: 140px">
+        <Column field="gestor" header="Responsável" sortable style="min-width: 140px">
           <template #body="slotProps">
               <span v-if="slotProps.data.gestor" class="text-[9px] font-black text-sky-500 uppercase tracking-widest bg-sky-50 dark:bg-sky-500/10 px-2 py-1 rounded-md border border-sky-100 dark:border-sky-500/20 whitespace-nowrap">
                 <i class="pi pi-briefcase mr-1"></i>{{ slotProps.data.gestor }}
               </span>
-              <span v-else class="text-[9px] text-slate-400 italic">Sem Gestor</span>
+              <span v-else class="text-[9px] text-slate-400 italic">Sem Responsável</span>
           </template>
         </Column>
 
-        <Column field="status_envio" header="Estado" sortable>
+        <Column field="status_envio" header="Status" sortable>
           <template #body="{ data }">
             <div class="flex flex-col items-start gap-1">
               
-              <Tag v-if="data.ativo === 0 || data.ativo === false" value="Pessoa Inativa" class="!bg-slate-200 dark:!bg-slate-800 !text-slate-400 !text-[10px] !font-black uppercase tracking-widest !px-3 shadow-sm line-through" />
+              <Tag v-if="data.ativo === 0 || data.ativo === false" value="Contato Inativo" class="!bg-slate-200 dark:!bg-slate-800 !text-slate-400 !text-[10px] !font-black uppercase tracking-widest !px-3 shadow-sm line-through" />
               
               <template v-else>
                 <Tag v-if="data.status_envio === 'Processando...'" value="A Processar" icon="pi pi-spin pi-spinner" class="!bg-amber-100 dark:!bg-amber-900/30 !text-amber-600 dark:!text-amber-400 !text-[10px] !font-black uppercase tracking-widest !px-3 shadow-sm gap-1.5" />
@@ -747,7 +747,7 @@ onUnmounted(() => {
               <Button 
                 v-if="temPermissao('audiencia:disparar')"
                 :icon="idsEnviando.includes(slotProps.data.cliente_id) ? 'pi pi-spin pi-spinner' : 'pi pi-send'" 
-                v-tooltip.top="(!slotProps.data.ativo && slotProps.data.ativo !== null) ? 'Envio bloqueado (Pessoa Inativa)' : (idsEnviando.includes(slotProps.data.cliente_id) ? 'A processar...' : 'Forçar Disparo')" 
+                v-tooltip.top="(!slotProps.data.ativo && slotProps.data.ativo !== null) ? 'Envio bloqueado (Contato Inativo)' : (idsEnviando.includes(slotProps.data.cliente_id) ? 'Processando...' : 'Forçar Disparo')" 
                 @click="dispararIndividual(slotProps.data)" 
                 :disabled="(!slotProps.data.ativo && slotProps.data.ativo !== null) || enviandoEmail || idsEnviando.includes(slotProps.data.cliente_id)" 
                 :class="[
@@ -761,7 +761,7 @@ onUnmounted(() => {
       </DataTable>
     </div>
 
-    <Dialog v-model:visible="clienteDialog" :style="{width: '550px'}" :header="editando ? 'Editar Registo' : 'Nova Pessoa'" :modal="true" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
+    <Dialog v-model:visible="clienteDialog" :style="{width: '550px'}" :header="editando ? 'Editar Registro' : 'Novo Contato'" :modal="true" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
       <div class="p-6 md:p-8 space-y-4 bg-slate-50/50 dark:bg-slate-900">
         
         <div class="flex flex-col gap-1.5">
@@ -781,7 +781,7 @@ onUnmounted(() => {
             </div>
 
             <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Conta (Empresa)</label>
+            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Empresa</label>
             <Dropdown v-model="cliente.empresa" :options="empresas" optionLabel="nome" optionValue="nome" editable filter placeholder="Selecione ou digite" class="custom-dropdown w-full" />
             </div>
         </div>
@@ -800,8 +800,8 @@ onUnmounted(() => {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Gestor da Conta</label>
-            <Dropdown v-model="cliente.gestor" :options="gestores.filter(g => g.value !== null)" optionLabel="label" optionValue="value" editable filter placeholder="Atribuir Gestor" class="custom-dropdown w-full" />
+            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Responsável</label>
+            <Dropdown v-model="cliente.gestor" :options="gestores.filter(g => g.value !== null)" optionLabel="label" optionValue="value" editable filter placeholder="Atribuir Responsável" class="custom-dropdown w-full" />
             </div>
             
             <div class="flex flex-col gap-1.5">
@@ -814,7 +814,7 @@ onUnmounted(() => {
       <template #footer>
         <div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900 flex gap-3 w-full">
           <Button label="Cancelar" text class="flex-1 font-bold text-[11px] text-slate-400" @click="clienteDialog = false" />
-          <Button v-if="temPermissao('clientes:criar') || temPermissao('clientes:editar')" :label="editando ? 'Guardar' : 'Adicionar'" :loading="submetendo" class="flex-1 !bg-indigo-500 !text-white !rounded-xl font-bold text-[11px] shadow-lg hover:scale-[1.02] transition-transform border-none py-3" @click="salvarCliente" />
+          <Button v-if="temPermissao('clientes:criar') || temPermissao('clientes:editar')" :label="editando ? 'Salvar' : 'Adicionar'" :loading="submetendo" class="flex-1 !bg-indigo-500 !text-white !rounded-xl font-bold text-[11px] shadow-lg hover:scale-[1.02] transition-transform border-none py-3" @click="salvarCliente" />
         </div>
       </template>
     </Dialog>

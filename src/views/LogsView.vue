@@ -77,7 +77,7 @@ const carregarEmails = async () => {
 };
 
 const onTabChange = (e) => {
-    // Carrega os emails apenas quando o utilizador clica na aba pela primeira vez (Lazy Load)
+    // Carrega os emails apenas quando o usuário clica na aba pela primeira vez (Lazy Load)
     if (e.index === 1 && emails.value.length === 0) {
         carregarEmails();
     }
@@ -100,7 +100,7 @@ onMounted(() => {
         <h1 class="text-2xl md:text-3xl font-black text-slate-800 dark:text-white tracking-tight italic">
           Auditoria <span class="text-orange-500">.</span>
         </h1>
-        <p class="text-slate-500 dark:text-slate-400 mt-1 font-medium text-sm">Registo de atividades, disparos e erros do sistema.</p>
+        <p class="text-slate-500 dark:text-slate-400 mt-1 font-medium text-sm">Registro de atividades, disparos e erros do sistema.</p>
       </div>
     </div>
 

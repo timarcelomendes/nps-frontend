@@ -365,7 +365,7 @@ const toggleDarkMode = () => {
 const armazenarSessao = (dados) => {
   try {
     sessionStorage.setItem('token', dados.access_token || ''); // 🎯 Use 'token' para bater com o Router
-    sessionStorage.setItem('usuario_nome', dados.nome || 'Utilizador');
+    sessionStorage.setItem('usuario_nome', dados.nome || 'Usuário');
     sessionStorage.setItem('usuario_tipo', dados.tipo || 'Usuário');
     sessionStorage.setItem('usuario_cargo', dados.cargo || 'Analista');
     sessionStorage.setItem('usuario_email', dados.email || '');
@@ -375,7 +375,7 @@ const armazenarSessao = (dados) => {
     const listaPermissoes = Array.isArray(dados.permissoes) ? dados.permissoes : [];
     sessionStorage.setItem('usuario_permissoes', JSON.stringify(listaPermissoes));
 
-    console.log("✅ Dados guardados no Storage.");
+    console.log("✅ Dados salvos no Storage.");
   } catch (error) {
     console.error("❌ Erro ao processar dados:", error);
     throw error;

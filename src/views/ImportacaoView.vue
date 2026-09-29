@@ -133,7 +133,7 @@ const dadosFiltrados = computed(() => {
 const rowClass = (data) => isRegistroValido(data) ? '' : '!bg-rose-50/50 dark:!bg-rose-500/5';
 
 // ==========================================
-// 🔄 PROCESSAMENTO DO FICHEIRO
+// 🔄 PROCESSAMENTO DO ARQUIVO
 // ==========================================
 const triggerFileInput = () => { fileInput.value.click(); };
 
@@ -163,7 +163,7 @@ const processarFicheiro = async (event) => {
 
   } catch (error) {
     console.error("Erro na pré-visualização:", error);
-    toast.add({ severity: 'error', summary: 'Erro de Leitura', detail: 'Não foi possível ler o ficheiro. Verifique se o formato está correto (XLSX ou CSV).' });
+    toast.add({ severity: 'error', summary: 'Erro de Leitura', detail: 'Não foi possível ler o arquivo. Verifique se o formato está correto (XLSX ou CSV).' });
     isProcessando.value = false;
   } finally {
     event.target.value = ''; 
@@ -175,7 +175,7 @@ const processarFicheiro = async (event) => {
 // ==========================================
 const enviarParaBackend = async () => {
   if (errosCount.value > 0 && !ignorarErros.value) {
-    toast.add({ severity: 'warn', summary: 'Ação Necessária', detail: `Existem ${errosCount.value} registos com erro. Corrija-os no ficheiro ou ative a opção para os ignorar.`, life: 5000 });
+    toast.add({ severity: 'warn', summary: 'Ação Necessária', detail: `Existem ${errosCount.value} registros com erro. Corrija-os no arquivo ou ative a opção para os ignorar.`, life: 5000 });
     return;
   }
 
@@ -184,7 +184,7 @@ const enviarParaBackend = async () => {
     : dadosPreview.value;
 
   if (dadosFinais.length === 0) {
-    toast.add({ severity: 'error', summary: 'Operação Abortada', detail: 'Não existem registos válidos para importar.' });
+    toast.add({ severity: 'error', summary: 'Operação Abortada', detail: 'Não existem registros válidos para importar.' });
     return;
   }
 
@@ -220,7 +220,7 @@ const enviarParaBackend = async () => {
 
   } catch (error) {
     console.error("Erro na importação:", error);
-    toast.add({ severity: 'error', summary: 'Falha no Servidor', detail: error.response?.data?.detail || 'Ocorreu um erro crítico ao guardar as informações na base de dados.' });
+    toast.add({ severity: 'error', summary: 'Falha no Servidor', detail: error.response?.data?.detail || 'Ocorreu um erro crítico ao salvar as informações na base de dados.' });
     isProcessando.value = false;
   }
 };
@@ -265,7 +265,7 @@ const reiniciar = () => {
              <div :class="['w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 transition-colors', tipoImportacao === 'clientes' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500']"><i class="pi pi-users"></i></div>
              <div>
                <h3 class="font-black text-slate-800 dark:text-white text-lg">Base de Clientes</h3>
-               <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Contactos e Empresas</p>
+               <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Contatos e Empresas</p>
              </div>
           </div>
           <p class="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">Importe ou atualize perfis, emails, empresas, cargos, segmentos e telefones de todos os seus clientes.</p>
@@ -297,7 +297,7 @@ const reiniciar = () => {
             <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
               Para evitar erros nas colunas e garantir uma validação perfeita, utilize sempre a nossa estrutura base.
             </p>
-            <Button label="Baixar Ficheiro Base (CSV)" icon="pi pi-download" class="!bg-white dark:!bg-slate-800 !text-slate-700 dark:!text-white !border !border-slate-200 dark:!border-slate-700 !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-5 shadow-sm" @click="baixarTemplate" />
+            <Button label="Baixar Arquivo Base (CSV)" icon="pi pi-download" class="!bg-white dark:!bg-slate-800 !text-slate-700 dark:!text-white !border !border-slate-200 dark:!border-slate-700 !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-5 shadow-sm" @click="baixarTemplate" />
           </div>
         </div>
 
@@ -308,13 +308,13 @@ const reiniciar = () => {
             
             <div v-if="isProcessando" class="w-full max-w-xs flex flex-col items-center">
               <i class="pi pi-spin pi-spinner text-4xl text-orange-500 mb-4"></i>
-              <span class="text-sm font-bold text-slate-700 dark:text-white mb-3">A analisar ficheiro na nuvem...</span>
+              <span class="text-sm font-bold text-slate-700 dark:text-white mb-3">Analisando arquivo na nuvem...</span>
               <ProgressBar :value="progresso" :showValue="false" class="h-1.5 w-full bg-orange-100 rounded-full" />
             </div>
 
             <div v-else class="flex flex-col items-center">
               <div class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-4 text-slate-400 shadow-sm border border-slate-100 dark:border-slate-700 group-hover:scale-110 transition-transform"><i class="pi pi-cloud-upload text-2xl"></i></div>
-              <h3 class="text-base font-black text-slate-800 dark:text-white mb-2">Clique para anexar o seu ficheiro</h3>
+              <h3 class="text-base font-black text-slate-800 dark:text-white mb-2">Clique para anexar o seu arquivo</h3>
               <p class="text-xs text-slate-500 font-medium">Suporta .CSV e .XLSX</p>
             </div>
           </div>
@@ -328,7 +328,7 @@ const reiniciar = () => {
         <h3 class="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white flex items-center gap-2 mb-2">
           <i class="pi pi-key text-orange-500"></i> Chaves de Atualização
         </h3>
-        <p class="text-[11px] text-slate-500 mb-6 font-medium">Defina como o sistema deve identificar se um registo já existe para evitar dados duplicados.</p>
+        <p class="text-[11px] text-slate-500 mb-6 font-medium">Defina como o sistema deve identificar se um registro já existe para evitar dados duplicados.</p>
         
         <div class="max-w-xl space-y-5">
           
@@ -378,7 +378,7 @@ const reiniciar = () => {
         <template #empty>
            <div class="text-center py-16 text-emerald-500 text-[11px] uppercase tracking-widest font-black flex flex-col items-center justify-center">
              <div class="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4"><i class="pi pi-check-circle text-3xl"></i></div>
-             <span v-if="mostrarApenasInvalidos">Todos os registos estão perfeitos! Nenhum erro encontrado.</span>
+             <span v-if="mostrarApenasInvalidos">Todos os registros estão perfeitos! Nenhum erro encontrado.</span>
              <span v-else>Nenhum dado carregado.</span>
            </div>
         </template>
@@ -414,24 +414,24 @@ const reiniciar = () => {
         <div class="flex flex-col gap-6">
           
           <div class="flex flex-col gap-2 pb-6 border-b border-slate-200 dark:border-slate-700/50">
-            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Vincular à Companhia (Opcional)</label>
+            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Vincular a um Grupo (Opcional)</label>
             <Dropdown 
               v-model="companhiaSelecionada" 
               :options="companhiasDisponiveis" 
               optionLabel="nome" 
               optionValue="id" 
-              placeholder="Selecione uma Companhia" 
+              placeholder="Selecione um Grupo" 
               filter
               showClear
               class="custom-input w-full md:max-w-md !p-1" 
             />
-            <span class="text-[10px] font-medium text-slate-400 ml-1">Todas as empresas deste ficheiro serão associadas a esta Companhia.</span>
+            <span class="text-[10px] font-medium text-slate-400 ml-1">Todas as empresas deste arquivo serão associadas a este Grupo.</span>
           </div>
 
           <div class="flex items-center justify-between group">
             <div class="flex flex-col pr-4">
-              <span class="text-sm font-bold text-slate-800 dark:text-white">Atualizar registos já existentes</span>
-              <span class="text-[11px] text-slate-500 mt-1 leading-relaxed">Substitui as informações antigas no banco de dados pelos dados novos deste ficheiro, baseando-se nas Chaves de Atualização.</span>
+              <span class="text-sm font-bold text-slate-800 dark:text-white">Atualizar registros já existentes</span>
+              <span class="text-[11px] text-slate-500 mt-1 leading-relaxed">Substitui as informações antigas no banco de dados pelos dados novos deste arquivo, baseando-se nas Chaves de Atualização.</span>
             </div>
             <InputSwitch v-model="configuracaoImportacao.overwrite" class="shrink-0" />
           </div>
@@ -473,7 +473,7 @@ const reiniciar = () => {
           </div>
 
           <div v-if="resumoFinal.detalhes && resumoFinal.detalhes.length > 0" class="pt-4">
-            <h3 class="text-[10px] font-black uppercase tracking-widest text-rose-500 mb-3">Detalhes dos Registos Não Importados</h3>
+            <h3 class="text-[10px] font-black uppercase tracking-widest text-rose-500 mb-3">Detalhes dos Registros Não Importados</h3>
             <div class="bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/50 rounded-xl p-3 max-h-48 overflow-y-auto custom-scrollbar shadow-inner">
               <ul class="flex flex-col gap-2">
                 <li v-for="(erro, index) in resumoFinal.detalhes" :key="index" class="text-[10px] font-medium text-slate-600 dark:text-slate-400 flex items-start gap-2">

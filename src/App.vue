@@ -36,7 +36,7 @@ const isDark = ref(false);
 // -- UI / Dropdown do Perfil
 const menuPerfilAberto = ref(false);
 
-// -- Dados do Utilizador e Avatar
+// -- Dados do Usuário e Avatar
 const isAdmin = ref(false);
 const nomeExibido = ref('');
 const cargoExibido = ref('');
@@ -95,7 +95,7 @@ const atualizarDadosUsuario = () => {
       iniciais.value = partes[0].substring(0, 2).toUpperCase();
     }
   } else {
-    nomeExibido.value = 'Utilizador';
+    nomeExibido.value = 'Usuário';
     cargoExibido.value = '';
     iniciais.value = '??';
     usuarioAvatar.value = '';
@@ -362,7 +362,7 @@ onMounted(() => {
         </router-link>
         
         <router-link to="/clientes" class="nav-item" @click="mobileMenuAberto = false">
-          <i class="pi pi-building"></i> <span>Contas</span>
+          <i class="pi pi-building"></i> <span>Clientes</span>
         </router-link>
 
         <router-link to="/respostas" class="nav-item" @click="mobileMenuAberto = false">
@@ -374,7 +374,7 @@ onMounted(() => {
         </router-link>
 
         <router-link to="/audiencia" class="nav-item" @click="mobileMenuAberto = false">
-          <i class="pi pi-users"></i> <span>Audiência</span>
+          <i class="pi pi-users"></i> <span>Envios</span>
         </router-link>
 
         <router-link v-if="isAdmin" to="/configuracoes" class="nav-item" @click="mobileMenuAberto = false">
@@ -430,7 +430,7 @@ onMounted(() => {
             </div>
             
             <div class="flex flex-col pr-6">
-              <span class="text-xs font-black text-rose-700 dark:text-rose-400">Danger Zone</span>
+              <span class="text-xs font-black text-rose-700 dark:text-rose-400">Zona de Risco</span>
               <span class="text-[10px] font-bold text-rose-500/80 dark:text-rose-400/80 mt-0.5 leading-tight">Limpeza de Dados</span>
             </div>
           </router-link>
@@ -503,9 +503,9 @@ onMounted(() => {
           </div>
         </router-link>
 
-        <router-link to="/clientes" :class="['nav-item', sidebarExpandida ? 'justify-start px-4' : 'justify-center px-0']" v-tooltip.right="!sidebarExpandida ? 'Contas' : null">
+        <router-link to="/clientes" :class="['nav-item', sidebarExpandida ? 'justify-start px-4' : 'justify-center px-0']" v-tooltip.right="!sidebarExpandida ? 'Clientes' : null">
           <i class="pi pi-building shrink-0"></i> 
-          <span v-show="sidebarExpandida" class="whitespace-nowrap transition-opacity duration-300">Contas</span>
+          <span v-show="sidebarExpandida" class="whitespace-nowrap transition-opacity duration-300">Clientes</span>
         </router-link>
 
         <router-link to="/respostas" :class="['nav-item', sidebarExpandida ? 'justify-start px-4' : 'justify-center px-0']" v-tooltip.right="!sidebarExpandida ? 'Respostas' : null">
@@ -518,9 +518,9 @@ onMounted(() => {
           <span v-show="sidebarExpandida" class="whitespace-nowrap transition-opacity duration-300">Importação</span>
         </router-link>
 
-        <router-link to="/audiencia" :class="['nav-item', sidebarExpandida ? 'justify-start px-4' : 'justify-center px-0']" v-tooltip.right="!sidebarExpandida ? 'Audiência' : null">
+        <router-link to="/audiencia" :class="['nav-item', sidebarExpandida ? 'justify-start px-4' : 'justify-center px-0']" v-tooltip.right="!sidebarExpandida ? 'Envios' : null">
           <i class="pi pi-users shrink-0"></i> 
-          <span v-show="sidebarExpandida" class="whitespace-nowrap transition-opacity duration-300">Audiência</span>
+          <span v-show="sidebarExpandida" class="whitespace-nowrap transition-opacity duration-300">Envios</span>
         </router-link>
 
         <router-link to="/acoes" :class="['nav-item border border-orange-100 dark:border-orange-500/20 bg-orange-50/50 dark:bg-orange-500/10', sidebarExpandida ? 'justify-start px-4' : 'justify-center px-0']" v-tooltip.right="!sidebarExpandida ? 'Planos de Ação' : null">
@@ -556,7 +556,7 @@ onMounted(() => {
               <i class="pi pi-exclamation-triangle text-rose-600 dark:text-rose-400 text-sm"></i>
             </div>
             <div v-show="sidebarExpandida" class="flex flex-col pr-6 animate-fadein">
-              <span class="text-xs font-black text-rose-700 dark:text-rose-400">Danger Zone</span>
+              <span class="text-xs font-black text-rose-700 dark:text-rose-400">Zona de Risco</span>
               <span class="text-[10px] font-bold text-rose-500/80 dark:text-rose-400/80 mt-0.5 leading-tight">Limpeza de Dados</span>
             </div>
           </router-link>
@@ -700,7 +700,7 @@ onMounted(() => {
                 <div class="w-2 h-2 rounded-full bg-fuchsia-500 animate-bounce" style="animation-delay: 300ms"></div>
               </div>
               <span class="text-xs text-slate-400/80 font-medium italic tracking-wide animate-pulse">
-                A consultar a base de dados...
+                Consultando a base de dados...
               </span>
             </div>
 
@@ -760,7 +760,7 @@ onMounted(() => {
             <i class="pi pi-send text-sm"></i>
           </button>
         </form>
-        <p class="text-[10px] text-slate-500 mt-2 text-center">A Rakiti AI pode processar dados históricos de NPS e Kanban.</p>
+        <p class="text-[10px] text-slate-500 mt-2 text-center">A Rakiti AI pode processar dados históricos de NPS e Planos de Ação.</p>
       </div>
     </div>
   </Sidebar>
@@ -876,7 +876,7 @@ onMounted(() => {
    ✨ ESTILO PREMIUM PARA O TOAST (NOTIFICAÇÕES)
    ========================================== */
 :deep(.p-toast) {
-  /* Adiciona um espaçamento mais elegante da borda do ecrã */
+  /* Adiciona um espaçamento mais elegante da borda da tela */
   margin-bottom: 1rem;
   margin-right: 1rem;
 }

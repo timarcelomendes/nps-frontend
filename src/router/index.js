@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
 // Mantenha aqui os imports que já tinha
-// import LoginView from '../views/LoginView.vue'; // (Descomente se estiver a importar no topo)
+// import LoginView from '../views/LoginView.vue'; // (Descomente se estiver importando no topo)
 import AdminLimpezaView from '../views/AdminLimpezaView.vue';
 
 const routes = [

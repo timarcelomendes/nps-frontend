@@ -1,6 +1,6 @@
 /**
  * Recebe uma data em UTC (do SQL Server) e converte para o fuso horário 
- * local do utilizador (ex: Brasil UTC-3) num formato legível.
+ * local do usuário (ex: Brasil UTC-3) num formato legível.
  */
 export const formatarDataLocal = (dataString) => {
   if (!dataString) return '-';

@@ -5,6 +5,14 @@ import { useToast } from 'primevue/usetoast';
 import { FilterMatchMode } from 'primevue/api';
 import { temPermissao } from '../utils/permissoes';
 
+// Modo simples: Contatos, Empresas e Responsáveis. Grupos, segmentos, perfis e cargos ficam em "Mais cadastros".
+const lerMaisCadastros = () => { try { return localStorage.getItem('contas_mais_cadastros') === '1'; } catch (e) { return false; } };
+const maisCadastros = ref(lerMaisCadastros());
+const alternarMaisCadastros = () => {
+  maisCadastros.value = !maisCadastros.value;
+  try { localStorage.setItem('contas_mais_cadastros', maisCadastros.value ? '1' : '0'); } catch (e) {}
+};
+
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Button from 'primevue/button';
@@ -33,14 +41,14 @@ const dialogVisivel = ref(false);
 const editando = ref(false);
 const dialogExclusao = ref(false);
 const idParaExcluir = ref(null);
-const tipoExclusao = ref(''); // Vai guardar a rota (ex: 'cadastros/empresas')
-const nomeExclusao = ref(''); // Vai guardar o texto (ex: 'esta empresa')
+const tipoExclusao = ref(''); // Vai salvar a rota (ex: 'cadastros/empresas')
+const nomeExclusao = ref(''); // Vai salvar o texto (ex: 'esta empresa')
 const excluindo = ref(false);
 
 const dialogEmpresa = ref(false);
 const editandoEmpresa = ref(false);
 const empresaForm = ref({
-  id: null, nome: '', segmento: null, valor_contrato: 0, gestor: null, companhia: null // 👈 COMPANHIA NO FORMULÁRIO DA EMPRESA
+  id: null, nome: '', segmento: null, valor_contrato: 0, gestor: null, companhia: null // 👈 GRUPO NO FORMULÁRIO DA EMPRESA
 });
 
 const dialogSegmento = ref(false);
@@ -174,10 +182,10 @@ const salvarCliente = async () => {
     
     dialogVisivel.value = false; 
     carregarTudo();
-    toast.add({ severity: 'success', summary: 'Atualizado', detail: 'Pessoa salva com sucesso.', life: 3000 });
+    toast.add({ severity: 'success', summary: 'Atualizado', detail: 'Contato salvo com sucesso.', life: 3000 });
   } catch (error) { 
     console.error(error);
-    const mensagemErro = error.response?.data?.detail || 'Falha ao guardar os dados.';
+    const mensagemErro = error.response?.data?.detail || 'Falha ao salvar os dados.';
     toast.add({ severity: 'error', summary: 'Ação Bloqueada', detail: mensagemErro, life: 6000 }); 
   } finally { 
     saving.value = false; 
@@ -187,7 +195,7 @@ const salvarCliente = async () => {
 // --- MOTOR UNIVERSAL DE EXCLUSÃO ---
 const confirmarExclusao = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'clientes'; nomeExclusao.value = 'esta pessoa'; dialogExclusao.value = true; };
 const confirmarExclusaoEmpresa = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/empresas'; nomeExclusao.value = 'esta empresa'; dialogExclusao.value = true; };
-const confirmarExclusaoCompanhia = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/companhias'; nomeExclusao.value = 'esta companhia'; dialogExclusao.value = true; };
+const confirmarExclusaoCompanhia = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/companhias'; nomeExclusao.value = 'este grupo'; dialogExclusao.value = true; };
 const confirmarExclusaoGestor = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/gestores'; nomeExclusao.value = 'este gestor'; dialogExclusao.value = true; };
 const confirmarExclusaoSegmento = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/segmentos'; nomeExclusao.value = 'este segmento'; dialogExclusao.value = true; };
 const confirmarExclusaoPerfil = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/perfis'; nomeExclusao.value = 'este perfil'; dialogExclusao.value = true; };
@@ -198,11 +206,11 @@ const executarExclusao = async () => {
   try { 
     // Apaga na rota dinâmica com base na aba clicada
     await api.delete(`/${tipoExclusao.value}/${idParaExcluir.value}`); 
-    toast.add({ severity: 'success', summary: 'Removido', detail: 'Registo excluído com sucesso.', life: 3000 });
+    toast.add({ severity: 'success', summary: 'Removido', detail: 'Registro excluído com sucesso.', life: 3000 });
     dialogExclusao.value = false; 
     carregarTudo(); 
   } catch (error) { 
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao excluir. O registo pode estar a ser usado noutro local.', life: 4000 }); 
+    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao excluir. O registro pode estar sendo usado em outro lugar.', life: 4000 }); 
   } finally { 
     excluindo.value = false; 
     idParaExcluir.value = null; 
@@ -268,7 +276,7 @@ const salvarCompanhia = async () => {
     if (editandoCompanhia.value) await api.put(`/cadastros/companhias/${companhiaForm.value.id}`, companhiaForm.value);
     else await api.post('/cadastros/companhias', companhiaForm.value);
     dialogCompanhia.value = false; carregarTudo();
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Companhia salva.' });
+    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Grupo salvo.' });
   } catch (e) {} finally { saving.value = false; }
 };
 
@@ -328,7 +336,7 @@ const salvarGestor = async () => {
     if (editandoGestor.value) await api.put(`/cadastros/gestores/${gestorForm.value.id}`, gestorForm.value);
     else await api.post('/cadastros/gestores', gestorForm.value);
     dialogGestor.value = false; carregarTudo();
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Gestor salvo.' });
+    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Responsável salvo.' });
   } catch (e) {} finally { saving.value = false; }
 };
 
@@ -362,7 +370,7 @@ const testarWebhook = async () => {
   }
 };
 
-const formatarMoeda = (valor) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(valor || 0);
+const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
 const getIniciais = (nome) => nome ? nome.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'CL';
 
 const getGestorPorEmpresa = (nomeEmpresa) => {
@@ -384,9 +392,9 @@ const alternarStatusCliente = async (dadosCliente) => {
     });
     
     const statusTexto = dadosCliente.ativo ? 'ativada' : 'inativada';
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: `Pessoa ${statusTexto} com sucesso!`, life: 3000 });
+    toast.add({ severity: 'success', summary: 'Sucesso', detail: `Contato ${statusTexto} com sucesso!`, life: 3000 });
   } catch (error) {
-    // Se der erro no servidor, revertemos o botão no ecrã automaticamente
+    // Se der erro no servidor, revertemos o botão na tela automaticamente
     dadosCliente.ativo = !dadosCliente.ativo;
     toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao alterar o status da pessoa.' });
   }
@@ -416,8 +424,8 @@ onMounted(carregarTudo);
       
       <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <h1 class="text-4xl font-black tracking-tighter italic text-slate-900 dark:text-white">Contas <span class="text-orange-500">.</span></h1>
-          <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">Gestão de Contas e Receita</p>
+          <h1 class="text-4xl font-black tracking-tighter italic text-slate-900 dark:text-white">Clientes <span class="text-orange-500">.</span></h1>
+          <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">Contatos, empresas e responsáveis</p>
         </div>
 
         <div class="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
@@ -437,6 +445,10 @@ onMounted(carregarTudo);
             />
           </div>
           
+          <button @click="alternarMaisCadastros" class="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl border whitespace-nowrap transition-all"
+            :class="maisCadastros ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-orange-300'">
+            <i class="pi mr-1" :class="maisCadastros ? 'pi-eye-slash' : 'pi-sliders-h'"></i>{{ maisCadastros ? 'Menos cadastros' : 'Mais cadastros' }}
+          </button>
           <Button icon="pi pi-refresh" @click="carregarTudo" :loading="loading" class="w-10 h-10 shrink-0 !bg-white dark:!bg-slate-900 !text-slate-600 dark:!text-slate-300 !border-slate-200 dark:!border-slate-700 !rounded-xl shadow-sm hover:!bg-slate-50" v-tooltip.top="'Atualizar'" />
         </div>
       </div>
@@ -445,13 +457,21 @@ onMounted(carregarTudo);
         <TabView class="custom-tabview">
           
           <TabPanel>
-            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-users text-indigo-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Pessoas</span></div></template>
+            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-users text-indigo-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Contatos</span></div></template>
             <div class="pt-4">
-              <div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Nova Pessoa" icon="pi pi-plus" @click="abrirNovo" class="!bg-indigo-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
+              <div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Contato" icon="pi pi-plus" @click="abrirNovo" class="!bg-indigo-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
               
               <DataTable :value="clientesFiltrados" v-model:filters="filtrosTabela" :globalFilterFields="['nome', 'email', 'empresa', 'cargo', 'perfil_decisor']" :paginator="true" :rows="10" dataKey="cliente_id" :loading="loading" class="p-datatable-sm custom-table" rowHover>
+                <template #empty>
+                  <div class="py-12 text-center">
+                    <i class="pi pi-users text-4xl text-slate-300 dark:text-slate-600"></i>
+                    <p class="mt-4 text-sm font-bold text-slate-600 dark:text-slate-300">Nenhum contato cadastrado ainda</p>
+                    <p class="mt-1 text-xs text-slate-400">O jeito mais rápido é importar uma planilha com seus clientes.</p>
+                    <router-link to="/importacao" class="inline-block mt-4 text-[10px] font-black uppercase tracking-widest text-orange-600 hover:underline">Importar planilha <i class="pi pi-arrow-right text-[9px]"></i></router-link>
+                  </div>
+                </template>
                 
-                <Column header="Pessoa" sortable field="nome" style="min-width: 250px">
+                <Column header="Contato" sortable field="nome" style="min-width: 250px">
                   <template #body="{ data }">
                     <div class="flex items-center gap-4 py-2">
                       <div class="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-[11px] font-black text-slate-500 border border-slate-100 dark:border-slate-700 shrink-0">{{ getIniciais(data.nome) }}</div>
@@ -460,7 +480,7 @@ onMounted(carregarTudo);
                   </template>
                 </Column>
                 
-                <Column header="Conta (Empresa)" sortable field="empresa">
+                <Column header="Empresa" sortable field="empresa">
                   <template #body="{ data }">
                     <div class="flex flex-col">
                       <span class="text-[12px] font-bold text-slate-600 dark:text-slate-300">{{ data.empresa || '-' }}</span>
@@ -469,7 +489,7 @@ onMounted(carregarTudo);
                   </template>
                 </Column>
 
-                <Column header="Gestor (Responsável)">
+                <Column header="Responsável">
                   <template #body="slotProps">
                     <div class="flex flex-col">
                       <div class="flex items-center gap-2">
@@ -537,14 +557,14 @@ onMounted(carregarTudo);
                   </template>
                 </Column>
 
-                <Column field="companhia" header="Companhia do Grupo">
+                <Column field="companhia" header="Grupo">
                   <template #body="{ data }">
                     <Tag v-if="data.companhia" :value="data.companhia" class="!bg-indigo-50 dark:!bg-indigo-500/10 !text-indigo-600 dark:!text-indigo-400 !border !border-indigo-100 dark:!border-indigo-500/20 !text-[9px] !font-black !uppercase !tracking-widest !px-3" />
                     <span v-else class="text-[10px] text-slate-400 italic font-medium">Não associada</span>
                   </template>
                 </Column>
 
-                <Column field="gestor" header="Gestor">
+                <Column field="gestor" header="Responsável">
                   <template #body="{ data }">
                     <span v-if="data.gestor" class="text-[10px] font-bold text-sky-600 dark:text-sky-400"><i class="pi pi-briefcase text-xs mr-1"></i> {{ typeof data.gestor === 'object' ? data.gestor.nome : data.gestor }}</span>
                     <span v-else class="text-[10px] text-slate-400 italic">Não associado</span>
@@ -553,10 +573,10 @@ onMounted(carregarTudo);
                 <Column field="segmento" header="Segmento">
                   <template #body="{ data }"><Tag v-if="data.segmento" :value="data.segmento" class="!bg-slate-100 !text-slate-600 dark:!bg-slate-800 dark:!text-slate-300 !text-[9px] !font-black !uppercase !tracking-widest !px-3" /></template>
                 </Column>
-                <Column field="total_contatos" header="Pessoas" sortable align="center">
+                <Column field="total_contatos" header="Contatos" sortable align="center">
                   <template #body="{ data }"><div class="text-[11px] font-bold text-slate-500"><i class="pi pi-users mr-1"></i> {{ data.total_contatos }}</div></template>
                 </Column>
-                <Column field="arr_total" header="Receita Anual" sortable align="right">
+                <Column field="arr_total" header="Receita" sortable align="right">
                   <template #body="{ data }"><span class="text-sm font-black text-emerald-600 dark:text-emerald-400">{{ formatarMoeda(data.arr_total) }}</span></template>
                 </Column>
                 <Column alignFrozen="right" style="width: 100px">
@@ -585,30 +605,9 @@ onMounted(carregarTudo);
           </TabPanel>
 
           <TabPanel>
-            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-sitemap text-indigo-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Companhias</span></div></template>
+            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-star-fill text-sky-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Responsáveis</span></div></template>
             <div class="pt-4">
-              <div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Nova Companhia" icon="pi pi-plus" @click="abrirNovaCompanhia" class="!bg-indigo-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
-              <DataTable :value="companhias" v-model:filters="filtrosTabela" :globalFilterFields="['nome']" :paginator="true" :rows="10" class="p-datatable-sm custom-table">
-                <Column field="id" header="ID" style="width: 80px" class="text-slate-400 text-xs font-bold"></Column>
-                <Column field="nome" header="Companhia do Grupo" sortable>
-                  <template #body="{ data }"><span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="pi pi-sitemap text-indigo-500"></i> {{ data.nome }}</span></template>
-                </Column>
-                <Column alignFrozen="right" style="width: 100px">
-                  <template #body="{ data }">
-                    <div class="flex gap-2 justify-end">
-                      <Button v-if="temPermissao('clientes:editar')" icon="pi pi-pencil" @click="editarFichaCompanhia(data)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-indigo-50 hover:!text-indigo-500 transition-colors" />
-                      <Button v-if="temPermissao('clientes:excluir')" icon="pi pi-trash" @click="confirmarExclusaoCompanhia(data.id)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-rose-50 hover:!text-rose-500 transition-colors" />
-                    </div>
-                  </template>
-                </Column>
-              </DataTable>
-            </div>
-          </TabPanel>
-
-          <TabPanel>
-            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-star-fill text-sky-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Gestores</span></div></template>
-            <div class="pt-4">
-              <div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Gestor" icon="pi pi-plus" @click="abrirNovoGestor" class="!bg-sky-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
+              <div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Responsável" icon="pi pi-plus" @click="abrirNovoGestor" class="!bg-sky-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
               <DataTable :value="gestores" v-model:filters="filtrosTabela" :globalFilterFields="['nome', 'papel', 'email']" :paginator="true" :rows="10" class="p-datatable-sm custom-table">
                 <Column field="id" header="ID" style="width: 80px" class="text-slate-400 text-xs font-bold"></Column>
                 <Column field="nome" header="Nome" sortable><template #body="{ data }"><span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="pi pi-user text-sky-500"></i> {{ data.nome }}</span></template></Column>
@@ -626,7 +625,28 @@ onMounted(carregarTudo);
             </div>
           </TabPanel>
 
-          <TabPanel>
+          <TabPanel v-if="maisCadastros">
+            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-sitemap text-indigo-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Grupos</span></div></template>
+            <div class="pt-4">
+              <div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Grupo" icon="pi pi-plus" @click="abrirNovaCompanhia" class="!bg-indigo-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
+              <DataTable :value="companhias" v-model:filters="filtrosTabela" :globalFilterFields="['nome']" :paginator="true" :rows="10" class="p-datatable-sm custom-table">
+                <Column field="id" header="ID" style="width: 80px" class="text-slate-400 text-xs font-bold"></Column>
+                <Column field="nome" header="Grupo" sortable>
+                  <template #body="{ data }"><span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="pi pi-sitemap text-indigo-500"></i> {{ data.nome }}</span></template>
+                </Column>
+                <Column alignFrozen="right" style="width: 100px">
+                  <template #body="{ data }">
+                    <div class="flex gap-2 justify-end">
+                      <Button v-if="temPermissao('clientes:editar')" icon="pi pi-pencil" @click="editarFichaCompanhia(data)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-indigo-50 hover:!text-indigo-500 transition-colors" />
+                      <Button v-if="temPermissao('clientes:excluir')" icon="pi pi-trash" @click="confirmarExclusaoCompanhia(data.id)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-rose-50 hover:!text-rose-500 transition-colors" />
+                    </div>
+                  </template>
+                </Column>
+              </DataTable>
+            </div>
+          </TabPanel>
+
+          <TabPanel v-if="maisCadastros">
             <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-chart-pie text-emerald-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Segmentos</span></div></template>
             <div class="pt-4"><div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Segmento" icon="pi pi-plus" @click="abrirNovoSegmento" class="!bg-emerald-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
             <DataTable :value="segmentos" v-model:filters="filtrosTabela" :globalFilterFields="['nome']" :paginator="true" :rows="10" class="p-datatable-sm custom-table">
@@ -642,7 +662,7 @@ onMounted(carregarTudo);
                 </Column>          
               </DataTable></div>
           </TabPanel>
-          <TabPanel>
+          <TabPanel v-if="maisCadastros">
             <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-id-card text-rose-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Perfis</span></div></template>
             <div class="pt-4"><div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Perfil" icon="pi pi-plus" @click="abrirNovoPerfil" class="!bg-rose-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div><DataTable :value="perfis" v-model:filters="filtrosTabela" :globalFilterFields="['nome']" :paginator="true" :rows="10" class="p-datatable-sm custom-table"><Column field="id" header="ID" style="width: 80px" class="text-slate-400 text-xs font-bold"></Column><Column field="nome" header="Papel na Conta" sortable><template #body="{ data }"><span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="pi pi-user text-rose-500"></i> {{ data.nome }}</span></template></Column>
             <Column alignFrozen="right" style="width: 100px">
@@ -655,7 +675,7 @@ onMounted(carregarTudo);
             </Column>
           </DataTable></div>
           </TabPanel>
-          <TabPanel>
+          <TabPanel v-if="maisCadastros">
             <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-briefcase text-purple-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Cargos</span></div></template>
             <div class="pt-4"><div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Cargo" icon="pi pi-plus" @click="abrirNovoCargo" class="!bg-purple-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div><DataTable :value="cargos" v-model:filters="filtrosTabela" :globalFilterFields="['nome']" :paginator="true" :rows="10" class="p-datatable-sm custom-table"><Column field="id" header="ID" style="width: 80px" class="text-slate-400 text-xs font-bold"></Column><Column field="nome" header="Cargo" sortable><template #body="{ data }"><span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="pi pi-briefcase text-purple-500"></i> {{ data.nome }}</span></template></Column>
               <Column alignFrozen="right" style="width: 100px">
@@ -672,13 +692,13 @@ onMounted(carregarTudo);
         </TabView>
       </div>
 
-      <Dialog v-model:visible="dialogVisivel" :header="editando ? 'Editar Pessoa' : 'Nova Pessoa'" modal :style="{width: '550px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
+      <Dialog v-model:visible="dialogVisivel" :header="editando ? 'Editar Contato' : 'Novo Contato'" modal :style="{width: '550px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
         <div class="p-6 md:p-8 bg-slate-50/50 dark:bg-slate-900 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="flex flex-col gap-1.5 md:col-span-2"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Nome Completo *</label><InputText v-model="cliente.nome" class="custom-input w-full" /></div>
           <div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">E-mail *</label><InputText v-model="cliente.email" type="email" class="custom-input w-full" /></div>
           <div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Telefone</label><InputText v-model="cliente.telefone" class="custom-input w-full" /></div>
           <div class="flex flex-col gap-1.5 md:col-span-2">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Conta (Empresa)</label>
+            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Empresa</label>
             <Dropdown v-model="cliente.empresa_id" :options="empresas" optionLabel="nome" optionValue="id" filter showClear placeholder="Selecione a Empresa" class="custom-dropdown w-full" />
           </div>
 
@@ -698,13 +718,13 @@ onMounted(carregarTudo);
               <div class="flex items-center gap-3">
                 <InputSwitch v-model="cliente.ativo" />
                 <span class="text-xs font-bold" :class="cliente.ativo ? 'text-emerald-500' : 'text-slate-500'">
-                  {{ cliente.ativo ? '🟢 Pessoa Ativa (Recebe pesquisas)' : '⏸️ Pessoa Inativa (Pausada)' }}
+                  {{ cliente.ativo ? '🟢 Contato Ativo (Recebe pesquisas)' : '⏸️ Contato Inativo (Pausado)' }}
                 </span>
               </div>
             </div>
           </div>
         </div>
-        <template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900 flex gap-3 w-full"><Button label="Cancelar" text class="flex-1 font-bold text-[11px] text-slate-400" @click="dialogVisivel = false" /><Button :label="editando ? 'Guardar' : 'Adicionar'" :loading="saving" class="flex-1 !bg-indigo-500 !text-white !rounded-xl font-bold text-[11px] shadow-lg border-none py-3" @click="salvarCliente" /></div></template>
+        <template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900 flex gap-3 w-full"><Button label="Cancelar" text class="flex-1 font-bold text-[11px] text-slate-400" @click="dialogVisivel = false" /><Button :label="editando ? 'Salvar' : 'Adicionar'" :loading="saving" class="flex-1 !bg-indigo-500 !text-white !rounded-xl font-bold text-[11px] shadow-lg border-none py-3" @click="salvarCliente" /></div></template>
       </Dialog>
 
       <Dialog v-model:visible="dialogEmpresa" :header="editandoEmpresa ? 'Editar Conta' : 'Nova Conta'" modal :style="{width: '450px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
@@ -713,13 +733,13 @@ onMounted(carregarTudo);
           
           <div class="flex flex-col gap-1.5 pt-2">
             <label class="text-[10px] font-black uppercase text-indigo-500 ml-1">
-              <i class="pi pi-sitemap text-[8px]"></i> Companhia do Grupo (Vínculo)
+              <i class="pi pi-sitemap text-[8px]"></i> Grupo (Vínculo)
             </label>
             <Dropdown 
               v-model="empresaForm.companhia" 
               :options="companhias" 
               optionLabel="nome" 
-              placeholder="Selecione a Companhia" 
+              placeholder="Selecione o Grupo" 
               filter
               showClear
               class="custom-dropdown w-full" 
@@ -742,13 +762,13 @@ onMounted(carregarTudo);
           
           <div class="flex flex-col gap-1.5 pt-2">
             <label class="text-[10px] font-black uppercase text-sky-500 ml-1">
-              <i class="pi pi-star-fill text-[8px]"></i> Pessoa de Contato (Gestor)
+              <i class="pi pi-star-fill text-[8px]"></i> Responsável
             </label>
             <Dropdown 
               v-model="empresaForm.gestor" 
               :options="gestores" 
               optionLabel="nome" 
-              placeholder="Selecione o Gestor" 
+              placeholder="Selecione o Responsável" 
               filter
               showClear
               class="custom-dropdown w-full" 
@@ -756,8 +776,8 @@ onMounted(carregarTudo);
           </div>
 
           <div class="flex flex-col gap-1.5 pt-2">
-            <label class="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 ml-1 flex items-center gap-1"><i class="pi pi-euro"></i> Valor Anual do Contrato (ARR)</label>
-            <InputNumber v-model="empresaForm.valor_contrato" mode="currency" currency="EUR" locale="pt-PT" class="w-full" inputClass="custom-input w-full !text-lg !font-black !text-emerald-600 dark:!text-emerald-400 !bg-emerald-50 dark:!bg-emerald-900/10" />
+            <label class="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 ml-1 flex items-center gap-1"><i class="pi pi-money-bill"></i> Valor do contrato (mensal)</label>
+            <InputNumber v-model="empresaForm.valor_contrato" mode="currency" currency="BRL" locale="pt-BR" class="w-full" inputClass="custom-input w-full !text-lg !font-black !text-emerald-600 dark:!text-emerald-400 !bg-emerald-50 dark:!bg-emerald-900/10" />
           </div>
 
           <div class="flex flex-col gap-2 pt-2">
@@ -776,16 +796,16 @@ onMounted(carregarTudo);
         <template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900"><Button :label="editandoEmpresa ? 'Atualizar Conta' : 'Criar Conta'" @click="salvarEmpresa" :loading="saving" class="w-full !bg-orange-500 !text-white py-4 !rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl" /></div></template>
       </Dialog>
 
-      <Dialog v-model:visible="dialogCompanhia" :header="editandoCompanhia ? 'Editar Companhia' : 'Nova Companhia'" modal :style="{width: '400px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
+      <Dialog v-model:visible="dialogCompanhia" :header="editandoCompanhia ? 'Editar Grupo' : 'Novo Grupo'" modal :style="{width: '400px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
         <div class="p-6 md:p-8 space-y-4 bg-slate-50/50 dark:bg-slate-900">
-          <div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Nome da Companhia *</label><InputText v-model="companhiaForm.nome" class="custom-input w-full" /></div>
+          <div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Nome do Grupo *</label><InputText v-model="companhiaForm.nome" class="custom-input w-full" /></div>
         </div>
-        <template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900"><Button :label="editandoCompanhia ? 'Atualizar Companhia' : 'Criar Companhia'" @click="salvarCompanhia" :loading="saving" class="w-full !bg-indigo-500 !text-white py-4 !rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl hover:scale-[1.02] transition-transform" /></div></template>
+        <template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900"><Button :label="editandoCompanhia ? 'Atualizar Grupo' : 'Criar Grupo'" @click="salvarCompanhia" :loading="saving" class="w-full !bg-indigo-500 !text-white py-4 !rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl hover:scale-[1.02] transition-transform" /></div></template>
       </Dialog>
 
       <Dialog 
         v-model:visible="dialogGestor" 
-        :header="editandoGestor ? 'Editar Perfil do Gestor' : 'Novo Gestor'" 
+        :header="editandoGestor ? 'Editar Perfil do Responsável' : 'Novo Responsável'" 
         modal 
         :style="{ width: '500px' }" 
         class="custom-dialog"
@@ -864,7 +884,7 @@ onMounted(carregarTudo);
               Cancelar
             </button>
             <Button 
-              label="Guardar Alterações" 
+              label="Salvar Alterações" 
               icon="pi pi-check" 
               @click="salvarGestor" 
               :loading="saving" 
@@ -877,7 +897,7 @@ onMounted(carregarTudo);
       <Dialog v-model:visible="dialogExclusao" header="Confirmar Exclusão" modal :style="{width: '400px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
         <div class="p-6 md:p-8 bg-slate-50/50 dark:bg-slate-900 text-center flex flex-col items-center">
           <div class="w-16 h-16 rounded-full bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center mb-4"><i class="pi pi-exclamation-triangle text-rose-500 text-3xl"></i></div>
-          <p class="text-slate-700 dark:text-slate-300 font-bold text-sm">Tem a certeza absoluta que deseja excluir {{ nomeExclusao }}?</p>
+          <p class="text-slate-700 dark:text-slate-300 font-bold text-sm">Tem certeza absoluta que deseja excluir {{ nomeExclusao }}?</p>
           <p class="text-slate-500 dark:text-slate-400 text-xs mt-2 font-medium">Esta ação não poderá ser desfeita.</p>
         </div>
         <template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900 flex gap-3 w-full"><Button label="Cancelar" text class="flex-1 font-bold text-[11px] text-slate-400" @click="dialogExclusao = false" /><Button label="Sim, confirmo!" :loading="excluindo" @click="executarExclusao" class="flex-1 !bg-rose-500 !text-white !rounded-xl font-bold text-[11px] shadow-lg border-none py-3" /></div></template>
