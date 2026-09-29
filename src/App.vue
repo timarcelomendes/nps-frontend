@@ -56,7 +56,7 @@ const arquivoSelecionado = ref(null);
 // ==========================================
 // Esconde a sidebar/menu em páginas específicas
 const exibirLayout = computed(() => {
-  const rotasSemMenu = ['Login', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica'];
+  const rotasSemMenu = ['Login', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica', 'FormularioPublico'];
   return !rotasSemMenu.includes(route.name);
 });
 
@@ -118,7 +118,7 @@ const logout = () => {
 };
 
 const exibirBotaoChat = computed(() => {
-  const rotasPublicas = ['Login', 'ResetPassword', 'RecuperarSenha', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica'];
+  const rotasPublicas = ['Login', 'ResetPassword', 'RecuperarSenha', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica', 'FormularioPublico'];
   return !rotasPublicas.includes(route.name);
 });
 
@@ -370,6 +370,10 @@ onMounted(() => {
           <i class="pi pi-comments"></i> <span>Respostas</span>
         </router-link>
 
+        <router-link to="/formularios" class="nav-item" @click="mobileMenuAberto = false">
+          <i class="pi pi-file-edit"></i> <span>Formulários</span>
+        </router-link>
+
         <router-link to="/importacao" class="nav-item" @click="mobileMenuAberto = false">
           <i class="pi pi-upload"></i> <span>Importação</span>
         </router-link>
@@ -519,6 +523,11 @@ onMounted(() => {
           <span v-show="sidebarExpandida" class="whitespace-nowrap transition-opacity duration-300">Importação</span>
         </router-link>
 
+        <router-link to="/formularios" :class="['nav-item', sidebarExpandida ? 'justify-start px-4' : 'justify-center px-0']" v-tooltip.right="!sidebarExpandida ? 'Formulários' : null">
+          <i class="pi pi-file-edit shrink-0"></i> 
+          <span v-show="sidebarExpandida" class="whitespace-nowrap transition-opacity duration-300">Formulários</span>
+        </router-link>
+
         <router-link to="/audiencia" :class="['nav-item', sidebarExpandida ? 'justify-start px-4' : 'justify-center px-0']" v-tooltip.right="!sidebarExpandida ? 'Envios' : null">
           <i class="pi pi-users shrink-0"></i> 
           <span v-show="sidebarExpandida" class="whitespace-nowrap transition-opacity duration-300">Envios</span>
@@ -631,7 +640,7 @@ onMounted(() => {
         </div>
       </header>
 
-      <main class="flex-1 overflow-y-auto relative" :class="route.name === 'PesquisaPublica' ? '' : 'p-6 md:p-8'">
+      <main class="flex-1 overflow-y-auto relative" :class="['PesquisaPublica', 'FormularioPublico'].includes(route.name) ? '' : 'p-6 md:p-8'">
          <router-view />
       </main>
 

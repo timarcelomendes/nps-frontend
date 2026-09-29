@@ -24,7 +24,7 @@ api.interceptors.response.use(
     }
 
     if (status === 401 || status === 403) {
-          if (window.location.pathname === '/login' || window.location.pathname.startsWith('/r/') || (error.config && error.config.url.includes('/login'))) {
+          if (window.location.pathname === '/login' || window.location.pathname.startsWith('/r/') || window.location.pathname.startsWith('/f/') || (error.config && error.config.url.includes('/login'))) {
             return Promise.reject(error);
           }
           sessionStorage.clear();

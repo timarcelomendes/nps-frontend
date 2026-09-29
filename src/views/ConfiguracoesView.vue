@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import api from '../services/api';
 import { useToast } from 'primevue/usetoast';
+import { useRouter } from 'vue-router';
 
 // Componentes PrimeVue
 import TabView from 'primevue/tabview';
@@ -21,6 +22,7 @@ import Textarea from 'primevue/textarea';
 import Checkbox from 'primevue/checkbox';
 
 const toast = useToast();
+const router = useRouter();
 
 // --- ESTADOS DE CONTROLE ---
 const loading = ref(false);
@@ -464,6 +466,24 @@ const exemploCurlCsat = computed(() => `curl -X POST "${integracaoCsat.value.url
   -H "X-Api-Key: ${mostrarChaveApi.value ? integracaoCsat.value.chave : 'SUA_CHAVE'}" \\
   -H "Content-Type: application/json" \\
   -d '{"email": "cliente@exemplo.com", "nome": "Maria", "referencia": "PED-1234", "assunto": "a entrega do pedido 1234"}'`);
+
+// Formulários usados nos envios (formulário próprio)
+const listaFormularios = ref([]);
+const carregarFormularios = async () => {
+  try { listaFormularios.value = (await api.get('/formularios')).data; } catch (e) { console.error(e); }
+};
+const formulariosDoTipo = (uso) => listaFormularios.value.filter(f => f.tipo === uso);
+const formularioPadrao = (uso) => listaFormularios.value.find(f => f[`padrao_${uso}`]);
+const trocarPadrao = async (uso, fid) => {
+  if (!fid) return;
+  try {
+    await api.post(`/formularios/${fid}/padrao`, { uso });
+    await carregarFormularios();
+    toast.add({ severity: 'success', summary: 'Formulário atualizado', detail: `Os envios de ${uso.toUpperCase()} vão usar o formulário escolhido.`, life: 3500 });
+  } catch (e) {
+    toast.add({ severity: 'warn', summary: 'Não foi possível', detail: e.response?.data?.detail, life: 5000 });
+  }
+};
 
 const copiarTexto = async (texto, rotulo = 'Copiado') => {
   try {
@@ -1265,6 +1285,7 @@ const criarContaPlataforma = async () => {
 };
 
 onMounted(() => {
+  carregarFormularios();
   carregarUsoIA();
   carregarContasPlataforma();
   carregarConta();
@@ -1430,19 +1451,24 @@ onMounted(() => {
                   </div>
 
                   <template v-if="regrasConfig.formulario_tipo !== 'externo'">
-                    <div class="flex flex-col gap-2 pt-2">
-                      <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 flex items-center justify-between">
-                        Pergunta de NPS
-                        <i class="pi pi-info-circle text-slate-400" v-tooltip.top="'{empresa} vira o nome da sua empresa.'"></i>
-                      </label>
-                      <InputText v-model="regrasConfig.pergunta_nps" class="custom-input !bg-white dark:!bg-slate-900 !text-[11px] shadow-sm !rounded-xl" />
-                    </div>
-                    <div class="flex flex-col gap-2 pt-2">
-                      <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 flex items-center justify-between">
-                        Pergunta de satisfação (CSAT)
-                        <i class="pi pi-info-circle text-slate-400" v-tooltip.top="'{assunto} vira o que foi avaliado, ex.: a entrega do pedido 1234.'"></i>
-                      </label>
-                      <InputText v-model="regrasConfig.pergunta_csat" class="custom-input !bg-white dark:!bg-slate-900 !text-[11px] shadow-sm !rounded-xl" />
+                    <div class="flex flex-col gap-3 pt-2">
+                      <div v-for="uso in ['nps', 'csat']" :key="uso" class="flex flex-col gap-1.5">
+                        <label class="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                          {{ uso === 'nps' ? 'Formulário dos envios de NPS' : 'Formulário da satisfação (CSAT)' }}
+                        </label>
+                        <div class="flex gap-2">
+                          <select :value="formularioPadrao(uso)?.id || ''" @change="trocarPadrao(uso, $event.target.value)"
+                            class="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] px-3 py-2.5">
+                            <option v-if="!formularioPadrao(uso)" value="">Nenhum formulário deste tipo</option>
+                            <option v-for="f in formulariosDoTipo(uso)" :key="f.id" :value="f.id">{{ f.nome }}</option>
+                          </select>
+                          <button type="button" v-if="formularioPadrao(uso)" @click="router.push(`/formularios/${formularioPadrao(uso).id}`)"
+                            class="px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">Editar</button>
+                        </div>
+                      </div>
+                      <button type="button" @click="router.push('/formularios')" class="self-start text-[10px] font-black uppercase tracking-widest text-orange-500 hover:underline">
+                        <i class="pi pi-file-edit mr-1"></i>Criar e gerenciar formulários
+                      </button>
                     </div>
                   </template>
 
@@ -2049,7 +2075,7 @@ onMounted(() => {
             <details class="text-xs">
               <summary class="cursor-pointer text-orange-500 font-bold">Ver exemplo para o seu desenvolvedor</summary>
               <pre class="mt-2 p-3 bg-slate-950 text-slate-200 rounded-xl overflow-x-auto text-[11px] leading-relaxed">{{ exemploCurlCsat }}</pre>
-              <p class="text-[11px] text-slate-500 mt-2">Campos: <b>email</b> (obrigatório), nome, referencia (nº do pedido/NF), assunto (o que será avaliado). A resposta traz o <b>link</b> da pesquisa, que também pode ser enviado por WhatsApp.</p>
+              <p class="text-[11px] text-slate-500 mt-2">Campos: <b>email</b> (obrigatório), nome, referencia (nº do pedido/NF), assunto (o que será avaliado) e <b>formulario_id</b> (opcional; sem ele, usa o formulário padrão de CSAT). A resposta traz o <b>link</b> da pesquisa, que também pode ser enviado por WhatsApp.</p>
             </details>
 
             <div class="mt-5 pt-5 border-t border-slate-100 dark:border-slate-800">

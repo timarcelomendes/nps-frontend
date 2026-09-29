@@ -16,6 +16,7 @@
     "marked": "^18.0.0",
     "primeicons": "^7.0.0",
     "primevue": "^3.50.0",
+    "qrcode": "^1.5.4",
     "vue": "^3.4.21",
     "vue-markdown-render": "^2.3.0",
     "vue-router": "^4.3.0"

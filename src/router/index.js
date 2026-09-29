@@ -34,6 +34,25 @@ const routes = [
     component: () => import('../views/PesquisaPublicaView.vue'),
     meta: { requiresAuth: false }
   },
+  {
+    // Link público do formulário (site, QR Code)
+    path: '/f/:codigo',
+    name: 'FormularioPublico',
+    component: () => import('../views/PesquisaPublicaView.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/formularios',
+    name: 'Formularios',
+    component: () => import('../views/FormulariosView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/formularios/:id',
+    name: 'FormularioEditor',
+    component: () => import('../views/FormularioEditorView.vue'),
+    meta: { requiresAuth: true }
+  },
 
   // ==========================================
   // 🔒 ROTAS PRIVADAS (Core da Aplicação)
