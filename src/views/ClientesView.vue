@@ -1,105 +1,44 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import api from '../services/api';
 import { useToast } from 'primevue/usetoast';
 import { FilterMatchMode } from 'primevue/api';
 import { temPermissao } from '../utils/permissoes';
 
-// Modo simples: Contatos, Empresas e Responsáveis. Grupos, segmentos, perfis e cargos ficam em "Mais cadastros".
-const lerMaisCadastros = () => { try { return localStorage.getItem('contas_mais_cadastros') === '1'; } catch (e) { return false; } };
-const maisCadastros = ref(lerMaisCadastros());
-const alternarMaisCadastros = () => {
-  maisCadastros.value = !maisCadastros.value;
-  try { localStorage.setItem('contas_mais_cadastros', maisCadastros.value ? '1' : '0'); } catch (e) {}
-};
-
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
-import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import Dialog from 'primevue/dialog';
 import Dropdown from 'primevue/dropdown';
 import InputNumber from 'primevue/inputnumber';
-import Tag from 'primevue/tag';
 import TabView from 'primevue/tabview';
 import TabPanel from 'primevue/tabpanel';
 import InputSwitch from 'primevue/inputswitch';
+import Toast from 'primevue/toast';
+import EstadoVazio from '../components/clientes/EstadoVazio.vue';
+import TabelaCadastroSimples from '../components/clientes/TabelaCadastroSimples.vue';
 
 const toast = useToast();
-const saving = ref(false);
+const router = useRouter();
 
+const podeCriar = temPermissao('clientes:criar');
+const podeEditar = temPermissao('clientes:editar');
+const podeExcluir = temPermissao('clientes:excluir');
+
+// ---------- Dados ----------
 const clientes = ref([]);
 const empresas = ref([]);
 const segmentos = ref([]);
 const perfis = ref([]);
-const cargos = ref([]); 
-const gestores = ref([]); 
+const cargos = ref([]);
+const gestores = ref([]);
 const companhias = ref([]);
 const loading = ref(true);
+const saving = ref(false);
 
-const dialogVisivel = ref(false);
-const editando = ref(false);
-const dialogExclusao = ref(false);
-const idParaExcluir = ref(null);
-const tipoExclusao = ref(''); // Vai salvar a rota (ex: 'cadastros/empresas')
-const nomeExclusao = ref(''); // Vai salvar o texto (ex: 'esta empresa')
-const excluindo = ref(false);
-
-const dialogEmpresa = ref(false);
-const editandoEmpresa = ref(false);
-const empresaForm = ref({
-  id: null, nome: '', segmento: null, valor_contrato: 0, gestor: null, companhia: null // 👈 GRUPO NO FORMULÁRIO DA EMPRESA
-});
-
-const dialogSegmento = ref(false);
-const editandoSegmento = ref(false);
-const segmentoForm = ref({ id: null, nome: '' });
-
-const dialogPerfil = ref(false);
-const editandoPerfil = ref(false);
-const perfilForm = ref({ id: null, nome: '' });
-
-const dialogCargo = ref(false);
-const editandoCargo = ref(false);
-const cargoForm = ref({ id: null, nome: '' });
-
-const dialogGestor = ref(false);
-const editandoGestor = ref(false);
-
-const dialogCompanhia = ref(false);
-const editandoCompanhia = ref(false);
-const companhiaForm = ref({ id: null, nome: '' });
-
-// 👇 VARIÁVEIS PARA A PESQUISA GLOBAL 👇
-const pesquisa = ref('');
-const filtrosTabela = ref({
-  global: { value: null, matchMode: FilterMatchMode.CONTAINS }
-});
-const atualizarFiltro = () => {
-  filtrosTabela.value.global.value = pesquisa.value;
-};
-
-// 👇 FILTRO DE INATIVOS (Oculta por padrão)
-const mostrarInativos = ref(false);
-
-const clientesFiltrados = computed(() => {
-  if (mostrarInativos.value) return clientes.value;
-  return clientes.value.filter(c => {
-    if (c.ativo === undefined || c.ativo === null) return true;
-    const st = String(c.ativo).toLowerCase();
-    return st !== '0' && st !== 'false';
-  });
-});
-
-const empresasFiltradas = computed(() => {
-  if (mostrarInativos.value) return empresas.value;
-
-  return empresas.value.filter(e => {
-    if (e.ativo === undefined || e.ativo === null) return true;
-    
-    return e.ativo === true || e.ativo === 1 || e.ativo === "1";
-  });
-});
+// A API devolve "ativo" como 1/0, "1"/"0", true/false ou nulo (nulo = ativo)
+const ehAtivo = (v) => !(v === 0 || v === false || v === '0' || String(v).toLowerCase() === 'false');
 
 const carregarTudo = async () => {
   loading.value = true;
@@ -109,866 +48,871 @@ const carregarTudo = async () => {
       api.get('/cadastros/perfis'), api.get('/cadastros/cargos'), api.get('/cadastros/gestores'),
       api.get('/cadastros/companhias')
     ]);
-    
-    clientes.value = resCli.data; empresas.value = resEmp.data;
-    segmentos.value = resSeg.data; perfis.value = resPerf.data;
-    cargos.value = resCargos.data; gestores.value = resGestores.data;
+    clientes.value = resCli.data.map(c => ({ ...c, ativo: ehAtivo(c.ativo) }));
+    empresas.value = resEmp.data.map(e => ({ ...e, ativo: ehAtivo(e.ativo) }));
+    segmentos.value = resSeg.data;
+    perfis.value = resPerf.data;
+    cargos.value = resCargos.data;
+    gestores.value = resGestores.data;
     companhias.value = resCompanhias.data;
   } catch (error) {
-    console.error(error);
-    
-    const mensagemErro = error.response?.data?.detail || 'Falha ao carregar os dados.';
-    
-    toast.add({ 
-        severity: 'error', 
-        summary: 'Erro de Comunicação', 
-        detail: mensagemErro, 
-        life: 6000 
-    });
+    avisarErro(error, 'Não foi possível carregar os clientes', 'Tente atualizar em alguns segundos.');
   } finally {
     loading.value = false;
-  } 
-}; 
-
-// 1. Atualizar o objeto para usar os sufixos _id
-const cliente = ref({
-  cliente_id: null, nome: '', email: '', telefone: '', empresa_id: null, perfil_id: null, cargo_id: null, ativo: true
-});
-
-// 2. Limpar os _ids ao criar um novo
-const abrirNovo = () => { 
-  cliente.value = { cliente_id: null, nome: '', email: '', telefone: '', empresa_id: null, perfil_id: null, cargo_id: null, ativo: true }; 
-  editando.value = false; 
-  dialogVisivel.value = true; 
+  }
 };
 
-// 3. Garantir que a edição carrega os _ids que vieram do banco
-const editarCliente = (dados) => {
-  cliente.value = { 
-    ...dados,
-    empresa_id: dados.empresa_id || null,
-    cargo_id: dados.cargo_id || null,
-    perfil_id: dados.perfil_id || null
-  }; 
-  cliente.value.ativo = dados.ativo === 1 || dados.ativo === true; 
-  editando.value = true;
-  dialogVisivel.value = true;
-};
-
-// 4. Converter as strings vazias para 'null' e forçar números antes de enviar à API
-const salvarCliente = async () => {
-  if (!cliente.value.nome || !cliente.value.email || !cliente.value.cargo_id) {
-    toast.add({ severity: 'warn', summary: 'Campos Obrigatórios', detail: 'Por favor, preencha o Nome, E-mail e Cargo.', life: 4000 });
+// HTTP 402 = limite de clientes do plano: mostra o aviso com o botão para a Assinatura
+const avisarErro = (error, titulo, padrao) => {
+  const detalhe = error?.response?.data?.detail;
+  const texto = typeof detalhe === 'string' && detalhe ? detalhe : padrao;
+  if (error?.response?.status === 402) {
+    toast.add({ group: 'limite-plano', severity: 'warn', summary: 'Seu plano chegou ao limite', detail: texto, life: 12000 });
     return;
   }
-  
+  toast.add({ severity: 'error', summary: titulo, detail: texto, life: 6000 });
+};
+const irParaAssinatura = () => {
+  toast.removeGroup('limite-plano');
+  router.push('/assinatura');
+};
+
+// ---------- Abas, busca e filtros ----------
+const abaAtiva = ref(0);
+const lerMaisCadastros = () => { try { return localStorage.getItem('contas_mais_cadastros') === '1'; } catch (e) { return false; } };
+const maisCadastros = ref(lerMaisCadastros());
+const alternarMaisCadastros = () => {
+  maisCadastros.value = !maisCadastros.value;
+  if (maisCadastros.value) abaAtiva.value = 3;
+  else if (abaAtiva.value > 2) abaAtiva.value = 0;
+  try { localStorage.setItem('contas_mais_cadastros', maisCadastros.value ? '1' : '0'); } catch (e) { /* navegador sem armazenamento */ }
+};
+
+// A busca filtra na própria tela (não faz requisições)
+const pesquisa = ref('');
+const buscando = computed(() => pesquisa.value.trim() !== '');
+const filtros = computed(() => ({ global: { value: pesquisa.value.trim() || null, matchMode: FilterMatchMode.CONTAINS } }));
+const limparBusca = () => { pesquisa.value = ''; };
+
+const mostrarInativos = ref(false);
+const clientesVisiveis = computed(() => (mostrarInativos.value ? clientes.value : clientes.value.filter(c => c.ativo)));
+const empresasVisiveis = computed(() => (mostrarInativos.value ? empresas.value : empresas.value.filter(e => e.ativo)));
+const clientesInativos = computed(() => clientes.value.length - clientes.value.filter(c => c.ativo).length);
+const empresasInativas = computed(() => empresas.value.length - empresas.value.filter(e => e.ativo).length);
+
+const contatosPorEmpresa = computed(() => {
+  const mapa = {};
+  clientes.value.forEach(c => { if (c.empresa_id !== '' && c.empresa_id != null) mapa[String(c.empresa_id)] = (mapa[String(c.empresa_id)] || 0) + 1; });
+  return mapa;
+});
+const empresaDoContato = (c) => empresas.value.find(e => String(e.id) === String(c.empresa_id)) || empresas.value.find(e => c.empresa && e.nome === c.empresa);
+const responsavelDoContato = (c) => empresaDoContato(c)?.gestor || c.gestor || '';
+
+const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+const iniciais = (nome) => (nome ? nome.trim().split(/\s+/).map(n => n[0]).join('').substring(0, 2).toUpperCase() : '?');
+
+// ---------- Contatos ----------
+const dialogContato = ref(false);
+const editandoContato = ref(false);
+const contatoVazio = () => ({ cliente_id: null, nome: '', email: '', telefone: '', empresa_id: null, perfil_id: null, cargo_id: null, ativo: true });
+const contato = ref(contatoVazio());
+
+const abrirNovoContato = () => {
+  contato.value = contatoVazio();
+  editandoContato.value = false;
+  dialogContato.value = true;
+};
+
+const editarContato = (dados) => {
+  contato.value = {
+    ...dados,
+    empresa_id: dados.empresa_id ? Number(dados.empresa_id) : null,
+    cargo_id: dados.cargo_id ? Number(dados.cargo_id) : null,
+    perfil_id: dados.perfil_id ? Number(dados.perfil_id) : null,
+    ativo: ehAtivo(dados.ativo),
+  };
+  editandoContato.value = true;
+  dialogContato.value = true;
+};
+
+const emailValido = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '');
+
+const salvarContato = async () => {
+  if (!contato.value.nome?.trim() || !emailValido(contato.value.email)) {
+    toast.add({ severity: 'warn', summary: 'Faltam dados', detail: 'Preencha o nome e um e-mail válido.', life: 4000 });
+    return;
+  }
   saving.value = true;
   try {
     const payload = {
-      ...cliente.value,
-      
-      empresa_id: cliente.value.empresa_id ? Number(cliente.value.empresa_id) : null,
-      perfil_id: cliente.value.perfil_id ? Number(cliente.value.perfil_id) : null,
-      cargo_id: cliente.value.cargo_id ? Number(cliente.value.cargo_id) : null,
-      
-      segmento_id: cliente.value.segmento_id ? Number(cliente.value.segmento_id) : null 
+      ...contato.value,
+      empresa_id: contato.value.empresa_id ? Number(contato.value.empresa_id) : null,
+      perfil_id: contato.value.perfil_id ? Number(contato.value.perfil_id) : null,
+      cargo_id: contato.value.cargo_id ? Number(contato.value.cargo_id) : null,
+      segmento_id: contato.value.segmento_id ? Number(contato.value.segmento_id) : null,
     };
-
-    if (editando.value) {
-      await api.put(`/clientes/${cliente.value.cliente_id || cliente.value.id}`, payload);
+    if (editandoContato.value) {
+      await api.put(`/clientes/${contato.value.cliente_id || contato.value.id}`, payload);
     } else {
       await api.post('/clientes', payload);
     }
-    
-    dialogVisivel.value = false; 
+    dialogContato.value = false;
+    toast.add({ severity: 'success', summary: editandoContato.value ? 'Contato atualizado' : 'Contato cadastrado', detail: contato.value.nome, life: 3000 });
     carregarTudo();
-    toast.add({ severity: 'success', summary: 'Atualizado', detail: 'Contato salvo com sucesso.', life: 3000 });
-  } catch (error) { 
-    console.error(error);
-    const mensagemErro = error.response?.data?.detail || 'Falha ao salvar os dados.';
-    toast.add({ severity: 'error', summary: 'Ação Bloqueada', detail: mensagemErro, life: 6000 }); 
-  } finally { 
-    saving.value = false; 
-  }
-};
-
-// --- MOTOR UNIVERSAL DE EXCLUSÃO ---
-const confirmarExclusao = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'clientes'; nomeExclusao.value = 'esta pessoa'; dialogExclusao.value = true; };
-const confirmarExclusaoEmpresa = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/empresas'; nomeExclusao.value = 'esta empresa'; dialogExclusao.value = true; };
-const confirmarExclusaoCompanhia = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/companhias'; nomeExclusao.value = 'este grupo'; dialogExclusao.value = true; };
-const confirmarExclusaoGestor = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/gestores'; nomeExclusao.value = 'este gestor'; dialogExclusao.value = true; };
-const confirmarExclusaoSegmento = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/segmentos'; nomeExclusao.value = 'este segmento'; dialogExclusao.value = true; };
-const confirmarExclusaoPerfil = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/perfis'; nomeExclusao.value = 'este perfil'; dialogExclusao.value = true; };
-const confirmarExclusaoCargo = (id) => { idParaExcluir.value = id; tipoExclusao.value = 'cadastros/cargos'; nomeExclusao.value = 'este cargo'; dialogExclusao.value = true; };
-
-const executarExclusao = async () => {
-  excluindo.value = true;
-  try { 
-    // Apaga na rota dinâmica com base na aba clicada
-    await api.delete(`/${tipoExclusao.value}/${idParaExcluir.value}`); 
-    toast.add({ severity: 'success', summary: 'Removido', detail: 'Registro excluído com sucesso.', life: 3000 });
-    dialogExclusao.value = false; 
-    carregarTudo(); 
-  } catch (error) { 
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao excluir. O registro pode estar sendo usado em outro lugar.', life: 4000 }); 
-  } finally { 
-    excluindo.value = false; 
-    idParaExcluir.value = null; 
-    tipoExclusao.value = '';
-  }
-};
-// -----------------------------------
-
-const abrirNovaEmpresa = () => { empresaForm.value = { id: null, nome: '', segmento: null, valor_contrato: 0, gestor: null, companhia: null }; editandoEmpresa.value = false; dialogEmpresa.value = true; };
-const editarFichaEmpresa = (dados) => { 
-  empresaForm.value = { 
-    id: dados.id, 
-    nome: dados.nome, 
-    segmento: dados.segmento, 
-    valor_contrato: dados.arr_total || 0, 
-    gestor: gestores.value.find(g => g.nome === dados.gestor) || null,
-    companhia: companhias.value.find(c => c.id === dados.companhia_id) || null,
-    ativo: dados.ativo !== 0 && dados.ativo !== false && dados.ativo !== '0' && dados.ativo !== 'false'
-  }; 
-  editandoEmpresa.value = true; 
-  dialogEmpresa.value = true; 
-};
-
-const salvarEmpresa = async () => {
-  saving.value = true;
-  
-  // 🎯 Payload Blindado: Força a conversão para Número ou devolve null
-  const payload = {
-    nome: empresaForm.value.nome,
-    valor_contrato: empresaForm.value.valor_contrato,
-    ativo: empresaForm.value.ativo,
-
-    segmento_id: empresaForm.value.segmento ? Number(empresaForm.value.segmento) : null,
-
-    gestor_id: empresaForm.value.gestor ? Number(empresaForm.value.gestor.id || empresaForm.value.gestor) : null,
-    
-    companhia_id: empresaForm.value.companhia ? Number(empresaForm.value.companhia.id || empresaForm.value.companhia) : null
-  };
-
-  try {
-    const url = editandoEmpresa.value ? `/cadastros/empresas/${empresaForm.value.id}` : '/cadastros/empresas';
-    const metodo = editandoEmpresa.value ? 'put' : 'post';
-    
-    await api[metodo](url, payload);
-    
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Conta salva com sucesso!', life: 3000 });
-    dialogEmpresa.value = false;
-    carregarTudo(); 
   } catch (error) {
-    const mensagemErro = error.response?.data?.detail || 'Falha ao comunicar com o servidor.';
-    toast.add({ severity: 'error', summary: 'Ação Bloqueada', detail: mensagemErro, life: 5000 });
+    avisarErro(error, 'Não foi possível salvar o contato', 'Tente novamente em alguns segundos.');
   } finally {
     saving.value = false;
   }
 };
 
-const abrirNovaCompanhia = () => { companhiaForm.value = { id: null, nome: '' }; editandoCompanhia.value = false; dialogCompanhia.value = true; };
-const editarFichaCompanhia = (dados) => { companhiaForm.value = { ...dados }; editandoCompanhia.value = true; dialogCompanhia.value = true; };
-const salvarCompanhia = async () => {
-  if (!companhiaForm.value.nome) return toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O nome da companhia é obrigatório.', life: 3000 });
-  saving.value = true;
+const alternarStatusCliente = async (dados) => {
   try {
-    if (editandoCompanhia.value) await api.put(`/cadastros/companhias/${companhiaForm.value.id}`, companhiaForm.value);
-    else await api.post('/cadastros/companhias', companhiaForm.value);
-    dialogCompanhia.value = false; carregarTudo();
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Grupo salvo.' });
-  } catch (e) {} finally { saving.value = false; }
+    await api.put(`/clientes/${dados.cliente_id}/status`, { ativo: dados.ativo });
+    toast.add({ severity: 'success', summary: dados.ativo ? 'Contato ativado' : 'Contato pausado', detail: dados.ativo ? `${dados.nome} volta a receber pesquisas.` : `${dados.nome} não recebe mais pesquisas.`, life: 3000 });
+  } catch (error) {
+    dados.ativo = !dados.ativo;
+    avisarErro(error, 'Não foi possível alterar o contato', 'Tente novamente em alguns segundos.');
+  }
 };
 
-const abrirNovoSegmento = () => { segmentoForm.value = { id: null, nome: '' }; editandoSegmento.value = false; dialogSegmento.value = true; };
-const editarFichaSegmento = (dados) => { segmentoForm.value = { ...dados }; editandoSegmento.value = true; dialogSegmento.value = true; };
-const salvarSegmento = async () => {
-  if (!segmentoForm.value.nome) return toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O nome do segmento é obrigatório.', life: 3000 });
+// ---------- Empresas ----------
+const dialogEmpresa = ref(false);
+const editandoEmpresa = ref(false);
+const empresaVazia = () => ({ id: null, nome: '', segmento: null, valor_contrato: 0, gestor_id: null, companhia_id: null, ativo: true, ativoOriginal: true });
+const empresaForm = ref(empresaVazia());
+let aoCriarEmpresa = null;
+
+// O segmento da empresa é gravado pelo nome; mantém o valor atual mesmo que não esteja na lista
+const opcoesSegmento = computed(() => {
+  const nomes = segmentos.value.map(s => s.nome);
+  const atual = empresaForm.value.segmento;
+  return atual && !nomes.includes(atual) ? [atual, ...nomes] : nomes;
+});
+
+const abrirNovaEmpresa = (callback = null) => {
+  aoCriarEmpresa = typeof callback === 'function' ? callback : null;
+  empresaForm.value = empresaVazia();
+  editandoEmpresa.value = false;
+  dialogEmpresa.value = true;
+};
+
+const editarEmpresa = (dados) => {
+  aoCriarEmpresa = null;
+  empresaForm.value = {
+    id: dados.id,
+    nome: dados.nome,
+    segmento: dados.segmento || null,
+    valor_contrato: dados.arr_total || 0,
+    gestor_id: dados.gestor_id ?? gestores.value.find(g => g.nome === dados.gestor)?.id ?? null,
+    companhia_id: dados.companhia_id ?? null,
+    ativo: ehAtivo(dados.ativo),
+    ativoOriginal: ehAtivo(dados.ativo),
+  };
+  editandoEmpresa.value = true;
+  dialogEmpresa.value = true;
+};
+
+const salvarEmpresa = async () => {
+  const f = empresaForm.value;
+  if (!f.nome?.trim()) {
+    toast.add({ severity: 'warn', summary: 'Faltam dados', detail: 'Informe o nome da empresa.', life: 4000 });
+    return;
+  }
   saving.value = true;
+  const payload = {
+    nome: f.nome.trim(),
+    segmento: f.segmento || null,
+    valor_contrato: f.valor_contrato || 0,
+    ativo: f.ativo,
+    gestor_id: f.gestor_id ? Number(f.gestor_id) : null,
+    gestor: gestores.value.find(g => g.id === f.gestor_id)?.nome || null,
+    companhia_id: f.companhia_id ? Number(f.companhia_id) : null,
+  };
   try {
-    if (editandoSegmento.value) await api.put(`/cadastros/segmentos/${segmentoForm.value.id}`, segmentoForm.value);
-    else await api.post('/cadastros/segmentos', segmentoForm.value);
-    dialogSegmento.value = false; carregarTudo();
-  } catch (e) {} finally { saving.value = false; }
+    if (editandoEmpresa.value) {
+      await api.put(`/cadastros/empresas/${f.id}`, payload);
+      // o cadastro da empresa não grava a situação; ela tem rota própria
+      if (f.ativo !== f.ativoOriginal) await api.put(`/empresas/${f.id}/status`, { ativo: f.ativo });
+    } else {
+      await api.post('/cadastros/empresas', payload);
+    }
+    dialogEmpresa.value = false;
+    toast.add({ severity: 'success', summary: editandoEmpresa.value ? 'Empresa atualizada' : 'Empresa cadastrada', detail: payload.nome, life: 3000 });
+    await carregarTudo();
+    if (aoCriarEmpresa) aoCriarEmpresa(empresas.value.find(e => e.nome === payload.nome));
+  } catch (error) {
+    avisarErro(error, 'Não foi possível salvar a empresa', 'Tente novamente em alguns segundos.');
+  } finally {
+    saving.value = false;
+    aoCriarEmpresa = null;
+  }
 };
 
-const abrirNovoPerfil = () => { perfilForm.value = { id: null, nome: '' }; editandoPerfil.value = false; dialogPerfil.value = true; };
-const editarFichaPerfil = (dados) => { perfilForm.value = { ...dados }; editandoPerfil.value = true; dialogPerfil.value = true; };
-const salvarPerfil = async () => {
-  if (!perfilForm.value.nome) return toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O nome do perfil é obrigatório.', life: 3000 });
-  saving.value = true;
+const alternarStatusEmpresa = async (dados) => {
   try {
-    if (editandoPerfil.value) await api.put(`/cadastros/perfis/${perfilForm.value.id}`, perfilForm.value);
-    else await api.post('/cadastros/perfis', perfilForm.value);
-    dialogPerfil.value = false; carregarTudo();
-  } catch (e) {} finally { saving.value = false; }
+    await api.put(`/empresas/${dados.id}/status`, { ativo: dados.ativo });
+    toast.add({ severity: 'success', summary: dados.ativo ? 'Empresa ativada' : 'Empresa inativada', detail: dados.nome, life: 3000 });
+  } catch (error) {
+    dados.ativo = !dados.ativo;
+    avisarErro(error, 'Não foi possível alterar a empresa', 'Tente novamente em alguns segundos.');
+  }
 };
 
-const abrirNovoCargo = () => { cargoForm.value = { id: null, nome: '' }; editandoCargo.value = false; dialogCargo.value = true; };
-const editarFichaCargo = (dados) => { cargoForm.value = { ...dados }; editandoCargo.value = true; dialogCargo.value = true; };
-const salvarCargo = async () => {
-  if (!cargoForm.value.nome) return toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O nome do cargo é obrigatório.', life: 3000 });
-  saving.value = true;
-  try {
-    if (editandoCargo.value) await api.put(`/cadastros/cargos/${cargoForm.value.id}`, cargoForm.value);
-    else await api.post('/cadastros/cargos', cargoForm.value);
-    dialogCargo.value = false; carregarTudo();
-  } catch (e) {} finally { saving.value = false; }
-};
-
-const abrirNovoGestor = () => { 
-  gestorForm.value = { id: null, nome: '', papel: '', email: '', teams_webhook: '' }; 
-  editandoGestor.value = false; 
-  dialogGestor.value = true; 
-};
-
+// ---------- Responsáveis ----------
+const dialogGestor = ref(false);
+const editandoGestor = ref(false);
 const gestorForm = ref({ id: null, nome: '', papel: '', email: '', teams_webhook: '', avatar: '' });
-const editarFichaGestor = (dados) => { 
-  gestorForm.value = { ...dados, avatar: dados.avatar || '' }; 
-  editandoGestor.value = true; 
-  dialogGestor.value = true; 
-};
+const avatarQuebrado = ref(false);
 
+const abrirNovoGestor = () => {
+  gestorForm.value = { id: null, nome: '', papel: '', email: '', teams_webhook: '', avatar: '' };
+  avatarQuebrado.value = false;
+  editandoGestor.value = false;
+  dialogGestor.value = true;
+};
+const editarGestor = (dados) => {
+  gestorForm.value = { ...dados, avatar: dados.avatar || '' };
+  avatarQuebrado.value = false;
+  editandoGestor.value = true;
+  dialogGestor.value = true;
+};
 const salvarGestor = async () => {
-  if (!gestorForm.value.nome) return toast.add({ severity: 'warn', summary: 'Atenção', detail: 'O nome do gestor é obrigatório.', life: 3000 });
+  if (!gestorForm.value.nome?.trim()) {
+    toast.add({ severity: 'warn', summary: 'Faltam dados', detail: 'Informe o nome do responsável.', life: 4000 });
+    return;
+  }
   saving.value = true;
   try {
     if (editandoGestor.value) await api.put(`/cadastros/gestores/${gestorForm.value.id}`, gestorForm.value);
     else await api.post('/cadastros/gestores', gestorForm.value);
-    dialogGestor.value = false; carregarTudo();
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: 'Responsável salvo.' });
-  } catch (e) {} finally { saving.value = false; }
+    dialogGestor.value = false;
+    toast.add({ severity: 'success', summary: 'Responsável salvo', detail: gestorForm.value.nome, life: 3000 });
+    carregarTudo();
+  } catch (error) {
+    avisarErro(error, 'Não foi possível salvar o responsável', 'Tente novamente em alguns segundos.');
+  } finally {
+    saving.value = false;
+  }
 };
 
 const testandoWebhook = ref(false);
-
 const testarWebhook = async () => {
   if (!gestorForm.value.teams_webhook) return;
-  
+  testandoWebhook.value = true;
   try {
-    testandoWebhook.value = true;
-    // Dispara para a nova rota que criámos no main.py
-    await api.post('/gestores/testar-webhook', { 
-      webhook_url: gestorForm.value.teams_webhook 
-    });
-    
-    toast.add({ 
-      severity: 'success', 
-      summary: 'Sucesso', 
-      detail: 'Mensagem de teste enviada para o Teams!', 
-      life: 4000 
-    });
+    await api.post('/gestores/testar-webhook', { webhook_url: gestorForm.value.teams_webhook });
+    toast.add({ severity: 'success', summary: 'Teste enviado', detail: 'Confira a mensagem no canal do Teams.', life: 4000 });
   } catch (error) {
-    toast.add({ 
-      severity: 'error', 
-      summary: 'Erro', 
-      detail: 'Falha ao enviar mensagem. Verifique se a URL está correta.', 
-      life: 5000 
-    });
+    toast.add({ severity: 'error', summary: 'O teste não chegou ao Teams', detail: 'Verifique se o endereço do webhook está correto.', life: 5000 });
   } finally {
     testandoWebhook.value = false;
   }
 };
 
-const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
-const getIniciais = (nome) => nome ? nome.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'CL';
+// ---------- Cadastros que só têm nome: grupos, segmentos, perfis e cargos ----------
+const CADASTROS = {
+  companhias: { rota: 'cadastros/companhias', lista: companhias, titulo: 'Grupos', coluna: 'Grupo', singular: 'grupo', icone: 'pi-sitemap',
+    descricao: 'Junte empresas do mesmo grupo econômico para ver os resultados somados.' },
+  segmentos: { rota: 'cadastros/segmentos', lista: segmentos, titulo: 'Segmentos', coluna: 'Segmento', singular: 'segmento', icone: 'pi-tags',
+    descricao: 'Ramo de atuação da empresa (ex.: Farmácia, Logística). Serve para comparar resultados por setor.' },
+  perfis: { rota: 'cadastros/perfis', lista: perfis, titulo: 'Perfis', coluna: 'Perfil', singular: 'perfil', icone: 'pi-id-card',
+    descricao: 'Papel do contato na decisão de compra (ex.: Decisor, Usuário, Influenciador).' },
+  cargos: { rota: 'cadastros/cargos', lista: cargos, titulo: 'Cargos', coluna: 'Cargo', singular: 'cargo', icone: 'pi-briefcase',
+    descricao: 'Cargo do contato na empresa cliente (ex.: Comprador, Gerente de Logística).' },
+};
+const abasExtras = ['companhias', 'segmentos', 'perfis', 'cargos'];
 
-const getGestorPorEmpresa = (nomeEmpresa) => {
-  if (!nomeEmpresa || nomeEmpresa === '-') return 'Sem Empresa';
-  const emp = empresas.value.find(e => e.nome === nomeEmpresa);
-  if (emp && emp.gestor) {
-    return typeof emp.gestor === 'object' ? emp.gestor.nome : emp.gestor;
+const dialogNome = ref(false);
+const nomeForm = ref({ tipo: 'cargos', original: null, nome: '' });
+let aoCriarNome = null;
+const cadastroNome = computed(() => CADASTROS[nomeForm.value.tipo]);
+
+const abrirNome = (tipo, item = null, callback = null) => {
+  aoCriarNome = typeof callback === 'function' ? callback : null;
+  nomeForm.value = { tipo, original: item, nome: item?.nome || '' };
+  dialogNome.value = true;
+};
+const salvarNome = async () => {
+  const cad = cadastroNome.value;
+  const nome = nomeForm.value.nome.trim();
+  if (!nome) {
+    toast.add({ severity: 'warn', summary: 'Faltam dados', detail: `Informe o nome do ${cad.singular}.`, life: 3000 });
+    return;
   }
-  return 'Não definido';
+  saving.value = true;
+  try {
+    const original = nomeForm.value.original;
+    if (original) await api.put(`/${cad.rota}/${original.id}`, { ...original, nome });
+    else await api.post(`/${cad.rota}`, { id: null, nome });
+    dialogNome.value = false;
+    toast.add({ severity: 'success', summary: `${cad.coluna} salvo`, detail: nome, life: 3000 });
+    await carregarTudo();
+    if (aoCriarNome) aoCriarNome(cad.lista.value.find(i => i.nome === nome));
+  } catch (error) {
+    avisarErro(error, `Não foi possível salvar o ${cad.singular}`, 'Tente novamente em alguns segundos.');
+  } finally {
+    saving.value = false;
+    aoCriarNome = null;
+  }
 };
 
-// ==========================================
-// 🛑 FUNÇÕES DE ATIVAR / INATIVAR
-// ==========================================
-const alternarStatusCliente = async (dadosCliente) => {
-  try {
-    await api.put(`/clientes/${dadosCliente.cliente_id}/status`, { 
-      ativo: dadosCliente.ativo 
-    });
-    
-    const statusTexto = dadosCliente.ativo ? 'ativada' : 'inativada';
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: `Contato ${statusTexto} com sucesso!`, life: 3000 });
-  } catch (error) {
-    // Se der erro no servidor, revertemos o botão na tela automaticamente
-    dadosCliente.ativo = !dadosCliente.ativo;
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao alterar o status da pessoa.' });
-  }
-};
+// Atalhos "+ Novo" dentro do formulário do contato: já selecionam o item criado
+const criarEmpresaParaContato = () => abrirNovaEmpresa((nova) => { if (nova) contato.value.empresa_id = nova.id; });
+const criarNomeParaContato = (tipo, campo) => abrirNome(tipo, null, (novo) => { if (novo) contato.value[campo] = novo.id; });
 
-const alternarStatusEmpresa = async (dadosEmpresa) => {
+// ---------- Exclusão ----------
+const dialogExclusao = ref(false);
+const exclusao = ref({ rota: '', id: null, descricao: '', aviso: '' });
+const excluindo = ref(false);
+
+const pedirExclusao = (rota, id, descricao, aviso = '') => {
+  exclusao.value = { rota, id, descricao, aviso };
+  dialogExclusao.value = true;
+};
+const excluirContato = (c) => pedirExclusao('clientes', c.cliente_id || c.id, `o contato ${c.nome}`,
+  'As respostas deste contato também serão apagadas. Se ele só não deve receber pesquisas, prefira desativá-lo.');
+const excluirEmpresa = (e) => pedirExclusao('cadastros/empresas', e.id, `a empresa ${e.nome}`,
+  'Os contatos continuam cadastrados, mas ficam sem empresa. Para só esconder a empresa, desative-a.');
+const excluirGestor = (g) => pedirExclusao('cadastros/gestores', g.id, `o responsável ${g.nome}`, 'As empresas dele ficam sem responsável.');
+const excluirNome = (tipo, item) => pedirExclusao(CADASTROS[tipo].rota, item.id, `o ${CADASTROS[tipo].singular} ${item.nome}`);
+
+const executarExclusao = async () => {
+  excluindo.value = true;
   try {
-    await api.put(`/empresas/${dadosEmpresa.id}/status`, { 
-      ativo: dadosEmpresa.ativo 
-    });
-    
-    const statusTexto = dadosEmpresa.ativo ? 'ativada' : 'inativada';
-    toast.add({ severity: 'success', summary: 'Sucesso', detail: `Empresa ${statusTexto} com sucesso!`, life: 3000 });
+    await api.delete(`/${exclusao.value.rota}/${exclusao.value.id}`);
+    toast.add({ severity: 'success', summary: 'Excluído', detail: `Você excluiu ${exclusao.value.descricao}.`, life: 3000 });
+    dialogExclusao.value = false;
+    carregarTudo();
   } catch (error) {
-    dadosEmpresa.ativo = !dadosEmpresa.ativo;
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao alterar o status da empresa.' });
+    avisarErro(error, 'Não foi possível excluir', 'Talvez o registro ainda esteja em uso em outro lugar.');
+  } finally {
+    excluindo.value = false;
   }
 };
 
 onMounted(carregarTudo);
-
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50/50 dark:bg-slate-950 p-4 lg:p-8">
-    <div class="max-w-[1600px] mx-auto space-y-8 animate-fadein">
-      
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+  <div class="max-w-[1400px] mx-auto flex flex-col gap-6 pb-24">
+    <!-- Cabeçalho -->
+    <header class="flex flex-col gap-4">
+      <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 class="text-4xl font-black tracking-tighter italic text-slate-900 dark:text-white">Clientes <span class="text-orange-500">.</span></h1>
-          <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">Contatos, empresas e responsáveis</p>
+          <h1 class="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">Clientes<span class="text-orange-500">.</span></h1>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Quem recebe suas pesquisas: contatos, as empresas deles e quem cuida de cada conta.</p>
         </div>
-
-        <div class="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
-          
-          <div class="flex items-center gap-3 bg-white dark:bg-slate-900 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-full md:w-auto">
-            <InputSwitch v-model="mostrarInativos" />
-            <span class="text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Mostrar Inativos</span>
-          </div>
-
-          <div class="relative w-full md:w-64">
-            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-            <InputText 
-              v-model="pesquisa" 
-              @input="atualizarFiltro" 
-              placeholder="Pesquisar..." 
-              class="!pl-9 !bg-white dark:!bg-slate-900 !border-slate-200 dark:!border-slate-700 !py-2 !rounded-xl w-full text-sm font-bold shadow-sm transition-all focus:!ring-2 focus:!ring-orange-500/20 outline-none" 
-            />
-          </div>
-          
-          <button @click="alternarMaisCadastros" class="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl border whitespace-nowrap transition-all"
-            :class="maisCadastros ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-orange-300'">
-            <i class="pi mr-1" :class="maisCadastros ? 'pi-eye-slash' : 'pi-sliders-h'"></i>{{ maisCadastros ? 'Menos cadastros' : 'Mais cadastros' }}
-          </button>
-          <Button icon="pi pi-refresh" @click="carregarTudo" :loading="loading" class="w-10 h-10 shrink-0 !bg-white dark:!bg-slate-900 !text-slate-600 dark:!text-slate-300 !border-slate-200 dark:!border-slate-700 !rounded-xl shadow-sm hover:!bg-slate-50" v-tooltip.top="'Atualizar'" />
+        <div class="flex items-center gap-2">
+          <router-link to="/importacao" class="cli-btn-secundario"><i class="pi pi-upload text-xs"></i>Importar planilha</router-link>
+          <button @click="carregarTudo" class="cli-btn-quadrado" title="Atualizar" aria-label="Atualizar"><i :class="['pi pi-refresh text-sm', loading ? 'pi-spin' : '']"></i></button>
         </div>
       </div>
 
-      <div class="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden p-2 sm:p-4">
-        <TabView class="custom-tabview">
-          
-          <TabPanel>
-            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-users text-indigo-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Contatos</span></div></template>
-            <div class="pt-4">
-              <div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Contato" icon="pi pi-plus" @click="abrirNovo" class="!bg-indigo-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
-              
-              <DataTable :value="clientesFiltrados" v-model:filters="filtrosTabela" :globalFilterFields="['nome', 'email', 'empresa', 'cargo', 'perfil_decisor']" :paginator="true" :rows="10" dataKey="cliente_id" :loading="loading" class="p-datatable-sm custom-table" rowHover>
-                <template #empty>
-                  <div class="py-12 text-center">
-                    <i class="pi pi-users text-4xl text-slate-300 dark:text-slate-600"></i>
-                    <p class="mt-4 text-sm font-bold text-slate-600 dark:text-slate-300">Nenhum contato cadastrado ainda</p>
-                    <p class="mt-1 text-xs text-slate-400">O jeito mais rápido é importar uma planilha com seus clientes.</p>
-                    <router-link to="/importacao" class="inline-block mt-4 text-[10px] font-black uppercase tracking-widest text-orange-600 hover:underline">Importar planilha <i class="pi pi-arrow-right text-[9px]"></i></router-link>
-                  </div>
-                </template>
-                
-                <Column header="Contato" sortable field="nome" style="min-width: 250px">
-                  <template #body="{ data }">
-                    <div class="flex items-center gap-4 py-2">
-                      <div class="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-[11px] font-black text-slate-500 border border-slate-100 dark:border-slate-700 shrink-0">{{ getIniciais(data.nome) }}</div>
-                      <div class="flex flex-col"><span class="text-[13px] font-black text-slate-800 dark:text-white">{{ data.nome }}</span><span class="text-[10px] text-slate-400 font-medium">{{ data.email }}</span></div>
-                    </div>
-                  </template>
-                </Column>
-                
-                <Column header="Empresa" sortable field="empresa">
-                  <template #body="{ data }">
-                    <div class="flex flex-col">
-                      <span class="text-[12px] font-bold text-slate-600 dark:text-slate-300">{{ data.empresa || '-' }}</span>
-                      <span v-if="data.cargo" class="text-[9px] text-slate-400 uppercase tracking-tighter mt-0.5">{{ data.cargo }}</span>
-                    </div>
-                  </template>
-                </Column>
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="relative flex-1 min-w-[220px] max-w-md">
+          <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none"></i>
+          <input v-model="pesquisa" type="text" role="searchbox" aria-label="Buscar" placeholder="Buscar por nome, e-mail ou empresa"
+            class="w-full h-10 pl-9 pr-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20" />
+          <button v-if="buscando" @click="limparBusca" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" aria-label="Limpar busca"><i class="pi pi-times text-xs"></i></button>
+        </div>
+        <label class="flex items-center gap-2 h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer" v-tooltip.bottom="'Contatos e empresas desativados não recebem pesquisas'">
+          <InputSwitch v-model="mostrarInativos" class="cli-switch scale-75" /><span class="text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap"><span class="sm:hidden">Inativos</span><span class="hidden sm:inline">Mostrar inativos</span></span>
+        </label>
+        <button @click="alternarMaisCadastros" :aria-pressed="maisCadastros"
+          class="h-10 px-3 rounded-xl border text-sm font-semibold whitespace-nowrap transition-colors"
+          :class="maisCadastros ? 'border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-300' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-orange-300'"
+          v-tooltip.bottom="'Grupos, segmentos, perfis e cargos'">
+          <i :class="['pi mr-1 text-xs', maisCadastros ? 'pi-chevron-up' : 'pi-sliders-h']"></i>{{ maisCadastros ? 'Ocultar mais cadastros' : 'Mais cadastros' }}
+        </button>
+      </div>
+    </header>
 
-                <Column header="Responsável">
-                  <template #body="slotProps">
-                    <div class="flex flex-col">
-                      <div class="flex items-center gap-2">
-                        <i class="pi pi-shield text-slate-400 text-[10px]"></i>
-                        <span class="text-[12px] font-bold text-slate-700 dark:text-slate-200">
-                          {{ getGestorPorEmpresa(slotProps.data.empresa) }}
-                        </span>
-                      </div>
-                      <span class="text-[9px] text-slate-400 uppercase font-black tracking-tighter mt-1">
-                        Vinculado via Empresa
-                      </span>
-                    </div>
-                  </template>
-                </Column>
+    <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-3 sm:p-5 min-w-0">
+      <TabView v-model:activeIndex="abaAtiva" class="cli-abas">
+        <!-- CONTATOS -->
+        <TabPanel>
+          <template #header><i class="pi pi-users"></i><span>Contatos</span><span class="cli-contador">{{ clientesVisiveis.length }}</span></template>
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <p class="text-sm text-slate-500 dark:text-slate-400">Pessoas que recebem as pesquisas por e-mail.</p>
+            <button v-if="podeCriar" @click="abrirNovoContato" class="cli-btn-primario"><i class="pi pi-plus text-xs"></i>Novo contato</button>
+          </div>
 
-                <Column header="Perfil">
-                  <template #body="{ data }"><div v-if="data.perfil_decisor" class="flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-tight"><i :class="data.perfil_decisor === 'Decisor' ? 'pi pi-star-fill text-orange-500' : 'pi pi-user'"></i> {{ data.perfil_decisor }}</div></template>
-                </Column>
+          <DataTable :value="clientesVisiveis" :filters="filtros" :globalFilterFields="['nome', 'email', 'telefone', 'empresa', 'cargo', 'perfil_decisor']"
+            :paginator="clientesVisiveis.length > 10" :rows="10" dataKey="cliente_id" :loading="loading" sortField="nome" :sortOrder="1"
+            responsiveLayout="stack" breakpoint="768px" class="cli-tabela" rowHover>
+            <template #empty>
+              <EstadoVazio v-if="buscando" icone="pi-search" :titulo="`Nenhum contato encontrado para “${pesquisa.trim()}”`" texto="Confira a grafia ou busque pelo e-mail ou pela empresa.">
+                <button @click="limparBusca" class="cli-btn-secundario">Limpar busca</button>
+              </EstadoVazio>
+              <EstadoVazio v-else-if="!loading && clientesInativos" icone="pi-pause" titulo="Todos os contatos estão inativos" texto="Contatos inativos não recebem pesquisas.">
+                <button @click="mostrarInativos = true" class="cli-btn-secundario">Mostrar inativos</button>
+              </EstadoVazio>
+              <EstadoVazio v-else-if="!loading" icone="pi-users" titulo="Nenhum contato ainda" texto="O jeito mais rápido é importar a planilha com seus clientes. Também dá para cadastrar um por um.">
+                <router-link to="/importacao" class="cli-btn-primario"><i class="pi pi-upload text-xs"></i>Importar planilha</router-link>
+                <button v-if="podeCriar" @click="abrirNovoContato" class="cli-btn-secundario"><i class="pi pi-plus text-xs"></i>Cadastrar contato</button>
+              </EstadoVazio>
+            </template>
 
-                <Column header="Ações" alignFrozen="right" style="width: 100px">
-                  <template #body="slotProps">
-                    <div class="flex gap-2 justify-end">
-                      <Button v-if="temPermissao('clientes:editar')" icon="pi pi-pencil" v-tooltip.top="'Editar'" @click="editarCliente(slotProps.data)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none hover:!text-slate-700 rounded-lg transition-colors !text-[10px]" />
-                      <Button v-if="temPermissao('clientes:excluir')" icon="pi pi-trash" v-tooltip.top="'Excluir'" @click="confirmarExclusao(slotProps.data.cliente_id || slotProps.data.id)" class="w-8 h-8 !bg-rose-50 dark:!bg-rose-500/10 !text-rose-400 !border-none hover:!bg-rose-100 rounded-lg transition-colors !text-[10px]" />
-                    </div>
-                  </template>
-                </Column>
-
-                <Column field="ativo" header="Status" style="width: 120px">
-                  <template #body="{ data }">
-                    <div class="flex flex-col items-center gap-1">
-                      <InputSwitch v-model="data.ativo" @change="alternarStatusCliente(data)" />
-                      
-                      <span class="text-[9px] font-black uppercase tracking-widest" :class="data.ativo ? 'text-emerald-500' : 'text-slate-400'">
-                        {{ data.ativo ? 'Ativo' : 'Inativo' }}
-                      </span>
-                    </div>
-                  </template>
-                </Column>
-
-              </DataTable>
-            </div>
-          </TabPanel>
-
-          <TabPanel>
-            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-building text-orange-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Empresas</span></div></template>
-            <div class="pt-4">
-              <div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Nova Empresa" icon="pi pi-plus" @click="abrirNovaEmpresa" class="!bg-orange-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
-              <DataTable 
-                  :key="mostrarInativos"
-                  :value="empresasFiltradas" 
-                  v-model:filters="filtrosTabela" 
-                  :globalFilterFields="['nome', 'companhia', 'gestor', 'segmento']" 
-                  :paginator="true" 
-                  :rows="10" 
-                  class="p-datatable-sm custom-table"
-                >
-                <Column field="nome" header="Nome" sortable>
-                  <template #body="{ data }">
-                    <span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-3">
-                      <Avatar v-if="data.avatar" :image="data.avatar" shape="circle" class="w-7 h-7 shadow-sm shrink-0 border border-slate-200 dark:border-slate-700" />
-                      <i v-else class="pi pi-user text-sky-500"></i> 
-                      {{ data.nome }}
-                    </span>
-                  </template>
-                </Column>
-
-                <Column field="companhia" header="Grupo">
-                  <template #body="{ data }">
-                    <Tag v-if="data.companhia" :value="data.companhia" class="!bg-indigo-50 dark:!bg-indigo-500/10 !text-indigo-600 dark:!text-indigo-400 !border !border-indigo-100 dark:!border-indigo-500/20 !text-[9px] !font-black !uppercase !tracking-widest !px-3" />
-                    <span v-else class="text-[10px] text-slate-400 italic font-medium">Não associada</span>
-                  </template>
-                </Column>
-
-                <Column field="gestor" header="Responsável">
-                  <template #body="{ data }">
-                    <span v-if="data.gestor" class="text-[10px] font-bold text-sky-600 dark:text-sky-400"><i class="pi pi-briefcase text-xs mr-1"></i> {{ typeof data.gestor === 'object' ? data.gestor.nome : data.gestor }}</span>
-                    <span v-else class="text-[10px] text-slate-400 italic">Não associado</span>
-                  </template>
-                </Column>
-                <Column field="segmento" header="Segmento">
-                  <template #body="{ data }"><Tag v-if="data.segmento" :value="data.segmento" class="!bg-slate-100 !text-slate-600 dark:!bg-slate-800 dark:!text-slate-300 !text-[9px] !font-black !uppercase !tracking-widest !px-3" /></template>
-                </Column>
-                <Column field="total_contatos" header="Contatos" sortable align="center">
-                  <template #body="{ data }"><div class="text-[11px] font-bold text-slate-500"><i class="pi pi-users mr-1"></i> {{ data.total_contatos }}</div></template>
-                </Column>
-                <Column field="arr_total" header="Receita" sortable align="right">
-                  <template #body="{ data }"><span class="text-sm font-black text-emerald-600 dark:text-emerald-400">{{ formatarMoeda(data.arr_total) }}</span></template>
-                </Column>
-                <Column alignFrozen="right" style="width: 100px">
-                  <template #body="{ data }">
-                    <div class="flex gap-2 justify-end">
-                      <Button v-if="temPermissao('clientes:editar')" icon="pi pi-pencil" @click="editarFichaEmpresa(data)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-indigo-50 hover:!text-indigo-500 transition-colors" />
-                      <Button v-if="temPermissao('clientes:excluir')" icon="pi pi-trash" @click="confirmarExclusaoEmpresa(data.id)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-rose-50 hover:!text-rose-500 transition-colors" />
-                    </div>
-                  </template>
-                </Column>
-
-                <Column field="ativo" header="Status" style="width: 120px">
-                  <template #body="{ data }">
-                    <div class="flex flex-col items-center gap-1">
-                      <InputSwitch v-model="data.ativo" @change="alternarStatusEmpresa(data)" />
-                      
-                      <span class="text-[9px] font-black uppercase tracking-widest" :class="data.ativo ? 'text-emerald-500' : 'text-slate-400'">
-                        {{ data.ativo ? 'Ativa' : 'Inativa' }}
-                      </span>
-                    </div>
-                  </template>
-                </Column>
-
-              </DataTable>
-            </div>
-          </TabPanel>
-
-          <TabPanel>
-            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-star-fill text-sky-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Responsáveis</span></div></template>
-            <div class="pt-4">
-              <div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Responsável" icon="pi pi-plus" @click="abrirNovoGestor" class="!bg-sky-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
-              <DataTable :value="gestores" v-model:filters="filtrosTabela" :globalFilterFields="['nome', 'papel', 'email']" :paginator="true" :rows="10" class="p-datatable-sm custom-table">
-                <Column field="id" header="ID" style="width: 80px" class="text-slate-400 text-xs font-bold"></Column>
-                <Column field="nome" header="Nome" sortable><template #body="{ data }"><span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="pi pi-user text-sky-500"></i> {{ data.nome }}</span></template></Column>
-                <Column field="papel" header="Papel / Função"><template #body="{ data }"><span class="text-[11px] font-medium text-slate-500 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-md border border-slate-100 dark:border-slate-700">{{ data.papel || 'Não definido' }}</span></template></Column>
-                <Column field="email" header="E-mail"><template #body="{ data }"><span class="text-[11px] font-medium text-slate-400">{{ data.email || 'Sem e-mail' }}</span></template></Column>
-                <Column alignFrozen="right" style="width: 100px">
-                  <template #body="{ data }">
-                    <div class="flex gap-2 justify-end">
-                      <Button v-if="temPermissao('clientes:editar')" icon="pi pi-pencil" @click="editarFichaGestor(data)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-indigo-50 hover:!text-indigo-500 transition-colors" />
-                      <Button v-if="temPermissao('clientes:excluir')" icon="pi pi-trash" @click="confirmarExclusaoGestor(data.id)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-rose-50 hover:!text-rose-500 transition-colors" />
-                    </div>
-                  </template>
-                </Column>
-              </DataTable>
-            </div>
-          </TabPanel>
-
-          <TabPanel v-if="maisCadastros">
-            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-sitemap text-indigo-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Grupos</span></div></template>
-            <div class="pt-4">
-              <div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Grupo" icon="pi pi-plus" @click="abrirNovaCompanhia" class="!bg-indigo-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
-              <DataTable :value="companhias" v-model:filters="filtrosTabela" :globalFilterFields="['nome']" :paginator="true" :rows="10" class="p-datatable-sm custom-table">
-                <Column field="id" header="ID" style="width: 80px" class="text-slate-400 text-xs font-bold"></Column>
-                <Column field="nome" header="Grupo" sortable>
-                  <template #body="{ data }"><span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="pi pi-sitemap text-indigo-500"></i> {{ data.nome }}</span></template>
-                </Column>
-                <Column alignFrozen="right" style="width: 100px">
-                  <template #body="{ data }">
-                    <div class="flex gap-2 justify-end">
-                      <Button v-if="temPermissao('clientes:editar')" icon="pi pi-pencil" @click="editarFichaCompanhia(data)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-indigo-50 hover:!text-indigo-500 transition-colors" />
-                      <Button v-if="temPermissao('clientes:excluir')" icon="pi pi-trash" @click="confirmarExclusaoCompanhia(data.id)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-rose-50 hover:!text-rose-500 transition-colors" />
-                    </div>
-                  </template>
-                </Column>
-              </DataTable>
-            </div>
-          </TabPanel>
-
-          <TabPanel v-if="maisCadastros">
-            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-chart-pie text-emerald-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Segmentos</span></div></template>
-            <div class="pt-4"><div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Segmento" icon="pi pi-plus" @click="abrirNovoSegmento" class="!bg-emerald-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div>
-            <DataTable :value="segmentos" v-model:filters="filtrosTabela" :globalFilterFields="['nome']" :paginator="true" :rows="10" class="p-datatable-sm custom-table">
-              <Column field="id" header="ID" style="width: 80px" class="text-slate-400 text-xs font-bold"></Column>
-              <Column field="nome" header="Nome do Segmento" sortable><template #body="{ data }"><span class="text-xs font-bold text-slate-700 dark:text-slate-300">{{ data.nome }}</span></template></Column>
-              <Column alignFrozen="right" style="width: 100px">
-                <template #body="{ data }">
-                  <div class="flex gap-2 justify-end">
-                    <Button v-if="temPermissao('clientes:editar')" icon="pi pi-pencil" @click="editarFichaSegmento(data)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-indigo-50 hover:!text-indigo-500 transition-colors" />
-                    <Button v-if="temPermissao('clientes:excluir')" icon="pi pi-trash" @click="confirmarExclusaoSegmento(data.id)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-rose-50 hover:!text-rose-500 transition-colors" />
-                  </div>
-                </template>
-                </Column>          
-              </DataTable></div>
-          </TabPanel>
-          <TabPanel v-if="maisCadastros">
-            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-id-card text-rose-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Perfis</span></div></template>
-            <div class="pt-4"><div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Perfil" icon="pi pi-plus" @click="abrirNovoPerfil" class="!bg-rose-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div><DataTable :value="perfis" v-model:filters="filtrosTabela" :globalFilterFields="['nome']" :paginator="true" :rows="10" class="p-datatable-sm custom-table"><Column field="id" header="ID" style="width: 80px" class="text-slate-400 text-xs font-bold"></Column><Column field="nome" header="Papel na Conta" sortable><template #body="{ data }"><span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="pi pi-user text-rose-500"></i> {{ data.nome }}</span></template></Column>
-            <Column alignFrozen="right" style="width: 100px">
+            <Column header="Contato" field="nome" sortable style="min-width: 240px">
               <template #body="{ data }">
-                <div class="flex gap-2 justify-end">
-                  <Button v-if="temPermissao('clientes:editar')" icon="pi pi-pencil" @click="editarFichaPerfil(data)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-indigo-50 hover:!text-indigo-500 transition-colors" />
-                  <Button v-if="temPermissao('clientes:excluir')" icon="pi pi-trash" @click="confirmarExclusaoPerfil(data.id)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-rose-50 hover:!text-rose-500 transition-colors" />
+                <div class="flex items-center gap-3 min-w-0" :class="{ 'opacity-60': !data.ativo }">
+                  <span class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-xs font-bold shrink-0">{{ iniciais(data.nome) }}</span>
+                  <div class="min-w-0 text-left">
+                    <p class="font-semibold text-slate-800 dark:text-slate-100 truncate">{{ data.nome }}</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 truncate">{{ data.email }}</p>
+                  </div>
                 </div>
               </template>
             </Column>
-          </DataTable></div>
-          </TabPanel>
-          <TabPanel v-if="maisCadastros">
-            <template #header><div class="flex items-center gap-2 px-2"><i class="pi pi-briefcase text-purple-500"></i><span class="font-black tracking-widest uppercase text-[10px]">Cargos</span></div></template>
-            <div class="pt-4"><div class="flex justify-end mb-4"><Button v-if="temPermissao('clientes:criar')" label="Novo Cargo" icon="pi pi-plus" @click="abrirNovoCargo" class="!bg-purple-500 !text-white !border-none !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-6 shadow-xl hover:scale-105" /></div><DataTable :value="cargos" v-model:filters="filtrosTabela" :globalFilterFields="['nome']" :paginator="true" :rows="10" class="p-datatable-sm custom-table"><Column field="id" header="ID" style="width: 80px" class="text-slate-400 text-xs font-bold"></Column><Column field="nome" header="Cargo" sortable><template #body="{ data }"><span class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2"><i class="pi pi-briefcase text-purple-500"></i> {{ data.nome }}</span></template></Column>
-              <Column alignFrozen="right" style="width: 100px">
-                <template #body="{ data }">
-                  <div class="flex gap-2 justify-end">
-                    <Button v-if="temPermissao('clientes:editar')" icon="pi pi-pencil" @click="editarFichaCargo(data)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-indigo-50 hover:!text-indigo-500 transition-colors" />
-                    <Button v-if="temPermissao('clientes:excluir')" icon="pi pi-trash" @click="confirmarExclusaoCargo(data.id)" class="w-8 h-8 !bg-slate-50 dark:!bg-slate-800 !text-slate-400 !border-none !text-[10px] rounded-lg hover:!bg-rose-50 hover:!text-rose-500 transition-colors" />
-                  </div>
-                </template>
-              </Column>
-            </DataTable></div>
-          </TabPanel>
-
-        </TabView>
-      </div>
-
-      <Dialog v-model:visible="dialogVisivel" :header="editando ? 'Editar Contato' : 'Novo Contato'" modal :style="{width: '550px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
-        <div class="p-6 md:p-8 bg-slate-50/50 dark:bg-slate-900 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="flex flex-col gap-1.5 md:col-span-2"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Nome Completo *</label><InputText v-model="cliente.nome" class="custom-input w-full" /></div>
-          <div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">E-mail *</label><InputText v-model="cliente.email" type="email" class="custom-input w-full" /></div>
-          <div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Telefone</label><InputText v-model="cliente.telefone" class="custom-input w-full" /></div>
-          <div class="flex flex-col gap-1.5 md:col-span-2">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Empresa</label>
-            <Dropdown v-model="cliente.empresa_id" :options="empresas" optionLabel="nome" optionValue="id" filter showClear placeholder="Selecione a Empresa" class="custom-dropdown w-full" />
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Perfil</label>
-            <Dropdown v-model="cliente.perfil_id" :options="perfis" optionLabel="nome" optionValue="id" showClear placeholder="Selecione o Perfil" class="custom-dropdown w-full" />
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Cargo *</label>
-            <Dropdown v-model="cliente.cargo_id" :options="cargos" optionLabel="nome" optionValue="id" filter showClear placeholder="Selecione o Cargo" class="custom-dropdown w-full" />
-          </div>
-          
-          <div class="flex flex-col gap-2 pt-2 md:col-span-2">
-            <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col gap-2">
-              <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Status do Envio</label>
-              <div class="flex items-center gap-3">
-                <InputSwitch v-model="cliente.ativo" />
-                <span class="text-xs font-bold" :class="cliente.ativo ? 'text-emerald-500' : 'text-slate-500'">
-                  {{ cliente.ativo ? '🟢 Contato Ativo (Recebe pesquisas)' : '⏸️ Contato Inativo (Pausado)' }}
+            <Column header="Empresa" field="empresa" sortable>
+              <template #body="{ data }">
+                <div class="text-right md:text-left">
+                  <p v-if="data.empresa" class="text-slate-700 dark:text-slate-200">{{ data.empresa }}</p>
+                  <p v-else class="text-slate-400">Sem empresa</p>
+                  <p v-if="data.cargo" class="text-sm text-slate-500 dark:text-slate-400">{{ data.cargo }}</p>
+                </div>
+              </template>
+            </Column>
+            <Column header="Responsável">
+              <template #body="{ data }">
+                <span v-if="responsavelDoContato(data)" class="text-slate-700 dark:text-slate-200">{{ responsavelDoContato(data) }}</span>
+                <span v-else class="text-slate-400" v-tooltip.top="'O responsável vem da empresa do contato'">—</span>
+              </template>
+            </Column>
+            <Column header="Perfil" field="perfil_decisor" sortable>
+              <template #body="{ data }">
+                <span v-if="data.perfil_decisor" class="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                  <i v-if="data.perfil_decisor === 'Decisor'" class="pi pi-star-fill text-orange-500 text-xs"></i>{{ data.perfil_decisor }}
                 </span>
-              </div>
-            </div>
+                <span v-else class="text-slate-400">—</span>
+              </template>
+            </Column>
+            <Column header="Recebe pesquisas" style="width: 150px">
+              <template #body="{ data }">
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                  <InputSwitch v-model="data.ativo" @change="alternarStatusCliente(data)" class="cli-switch scale-75" :ariaLabel="`Contato ${data.nome} recebe pesquisas`" />
+                  <span class="text-sm" :class="data.ativo ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'">{{ data.ativo ? 'Sim' : 'Pausado' }}</span>
+                </label>
+              </template>
+            </Column>
+            <Column header="Ações" style="width: 100px">
+              <template #body="{ data }">
+                <div class="flex gap-1 justify-end">
+                  <button v-if="podeEditar" @click="editarContato(data)" class="cli-btn-icone" v-tooltip.top="'Editar'" :aria-label="`Editar ${data.nome}`"><i class="pi pi-pencil"></i></button>
+                  <button v-if="podeExcluir" @click="excluirContato(data)" class="cli-btn-icone cli-btn-perigo" v-tooltip.top="'Excluir'" :aria-label="`Excluir ${data.nome}`"><i class="pi pi-trash"></i></button>
+                </div>
+              </template>
+            </Column>
+          </DataTable>
+        </TabPanel>
+
+        <!-- EMPRESAS -->
+        <TabPanel>
+          <template #header><i class="pi pi-building"></i><span>Empresas</span><span class="cli-contador">{{ empresasVisiveis.length }}</span></template>
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <p class="text-sm text-slate-500 dark:text-slate-400">Empresas clientes. Os resultados de NPS são somados por empresa.</p>
+            <button v-if="podeCriar" @click="abrirNovaEmpresa" class="cli-btn-primario"><i class="pi pi-plus text-xs"></i>Nova empresa</button>
+          </div>
+
+          <DataTable :value="empresasVisiveis" :filters="filtros" :globalFilterFields="['nome', 'companhia', 'gestor', 'segmento']"
+            :paginator="empresasVisiveis.length > 10" :rows="10" dataKey="id" :loading="loading" sortField="nome" :sortOrder="1"
+            responsiveLayout="stack" breakpoint="768px" class="cli-tabela" rowHover>
+            <template #empty>
+              <EstadoVazio v-if="buscando" icone="pi-search" :titulo="`Nenhuma empresa encontrada para “${pesquisa.trim()}”`">
+                <button @click="limparBusca" class="cli-btn-secundario">Limpar busca</button>
+              </EstadoVazio>
+              <EstadoVazio v-else-if="!loading && empresasInativas" icone="pi-pause" titulo="Todas as empresas estão inativas">
+                <button @click="mostrarInativos = true" class="cli-btn-secundario">Mostrar inativas</button>
+              </EstadoVazio>
+              <EstadoVazio v-else-if="!loading" icone="pi-building" titulo="Nenhuma empresa ainda" texto="Ao importar a planilha de contatos, as empresas são criadas sozinhas.">
+                <router-link to="/importacao" class="cli-btn-primario"><i class="pi pi-upload text-xs"></i>Importar planilha</router-link>
+                <button v-if="podeCriar" @click="abrirNovaEmpresa" class="cli-btn-secundario"><i class="pi pi-plus text-xs"></i>Cadastrar empresa</button>
+              </EstadoVazio>
+            </template>
+
+            <Column field="nome" header="Empresa" sortable style="min-width: 200px">
+              <template #body="{ data }">
+                <div class="text-right md:text-left" :class="{ 'opacity-60': !data.ativo }">
+                  <p class="font-semibold text-slate-800 dark:text-slate-100">{{ data.nome }}</p>
+                  <p v-if="data.companhia" class="text-sm text-slate-500 dark:text-slate-400"><i class="pi pi-sitemap text-xs mr-1"></i>{{ data.companhia }}</p>
+                </div>
+              </template>
+            </Column>
+            <Column field="gestor" header="Responsável" sortable>
+              <template #body="{ data }">
+                <span v-if="data.gestor" class="text-slate-700 dark:text-slate-200">{{ data.gestor }}</span>
+                <span v-else class="text-slate-400">Sem responsável</span>
+              </template>
+            </Column>
+            <Column field="segmento" header="Segmento" sortable>
+              <template #body="{ data }">
+                <span v-if="data.segmento" class="text-sm px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{{ data.segmento }}</span>
+                <span v-else class="text-slate-400">—</span>
+              </template>
+            </Column>
+            <Column header="Contatos" style="width: 100px">
+              <template #body="{ data }">
+                <span class="text-slate-600 dark:text-slate-300 tabular-nums">{{ contatosPorEmpresa[String(data.id)] || 0 }}</span>
+              </template>
+            </Column>
+            <Column field="arr_total" header="Contrato/mês" sortable style="width: 140px">
+              <template #body="{ data }">
+                <span class="font-semibold text-slate-800 dark:text-slate-100 tabular-nums whitespace-nowrap">{{ formatarMoeda(data.arr_total) }}</span>
+              </template>
+            </Column>
+            <Column header="Ativa" style="width: 110px">
+              <template #body="{ data }">
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                  <InputSwitch v-model="data.ativo" @change="alternarStatusEmpresa(data)" class="cli-switch scale-75" :ariaLabel="`Empresa ${data.nome} ativa`" />
+                  <span class="text-sm" :class="data.ativo ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'">{{ data.ativo ? 'Sim' : 'Não' }}</span>
+                </label>
+              </template>
+            </Column>
+            <Column header="Ações" style="width: 100px">
+              <template #body="{ data }">
+                <div class="flex gap-1 justify-end">
+                  <button v-if="podeEditar" @click="editarEmpresa(data)" class="cli-btn-icone" v-tooltip.top="'Editar'" :aria-label="`Editar ${data.nome}`"><i class="pi pi-pencil"></i></button>
+                  <button v-if="podeExcluir" @click="excluirEmpresa(data)" class="cli-btn-icone cli-btn-perigo" v-tooltip.top="'Excluir'" :aria-label="`Excluir ${data.nome}`"><i class="pi pi-trash"></i></button>
+                </div>
+              </template>
+            </Column>
+          </DataTable>
+        </TabPanel>
+
+        <!-- RESPONSÁVEIS -->
+        <TabPanel>
+          <template #header><i class="pi pi-user"></i><span>Responsáveis</span><span class="cli-contador">{{ gestores.length }}</span></template>
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <p class="text-sm text-slate-500 dark:text-slate-400">Pessoas da sua equipe que cuidam das empresas e recebem os alertas de clientes insatisfeitos.</p>
+            <button v-if="podeCriar" @click="abrirNovoGestor" class="cli-btn-primario"><i class="pi pi-plus text-xs"></i>Novo responsável</button>
+          </div>
+
+          <DataTable :value="gestores" :filters="filtros" :globalFilterFields="['nome', 'papel', 'email']"
+            :paginator="gestores.length > 10" :rows="10" dataKey="id" :loading="loading" sortField="nome" :sortOrder="1"
+            responsiveLayout="stack" breakpoint="768px" class="cli-tabela" rowHover>
+            <template #empty>
+              <EstadoVazio v-if="buscando" icone="pi-search" :titulo="`Nenhum responsável encontrado para “${pesquisa.trim()}”`">
+                <button @click="limparBusca" class="cli-btn-secundario">Limpar busca</button>
+              </EstadoVazio>
+              <EstadoVazio v-else-if="!loading" icone="pi-user" titulo="Nenhum responsável ainda" texto="Cadastre quem cuida de cada empresa para receber os alertas certos.">
+                <button v-if="podeCriar" @click="abrirNovoGestor" class="cli-btn-primario"><i class="pi pi-plus text-xs"></i>Cadastrar responsável</button>
+              </EstadoVazio>
+            </template>
+
+            <Column field="nome" header="Nome" sortable style="min-width: 200px">
+              <template #body="{ data }">
+                <div class="flex items-center gap-3">
+                  <img v-if="data.avatar" :src="data.avatar" alt="" class="w-9 h-9 rounded-full object-cover shrink-0" @error="(e) => e.target.style.display = 'none'" />
+                  <span v-else class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-xs font-bold shrink-0">{{ iniciais(data.nome) }}</span>
+                  <span class="font-semibold text-slate-800 dark:text-slate-100">{{ data.nome }}</span>
+                </div>
+              </template>
+            </Column>
+            <Column field="papel" header="Função">
+              <template #body="{ data }"><span :class="data.papel ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'">{{ data.papel || '—' }}</span></template>
+            </Column>
+            <Column field="email" header="E-mail">
+              <template #body="{ data }"><span :class="data.email ? 'text-slate-700 dark:text-slate-200 break-all' : 'text-slate-400'">{{ data.email || 'Sem e-mail' }}</span></template>
+            </Column>
+            <Column header="Teams" style="width: 130px">
+              <template #body="{ data }">
+                <span v-if="data.teams_webhook" class="text-sm text-slate-700 dark:text-slate-200"><i class="pi pi-check text-xs mr-1 text-emerald-600"></i>Conectado</span>
+                <span v-else class="text-sm text-slate-400">Não conectado</span>
+              </template>
+            </Column>
+            <Column header="Ações" style="width: 100px">
+              <template #body="{ data }">
+                <div class="flex gap-1 justify-end">
+                  <button v-if="podeEditar" @click="editarGestor(data)" class="cli-btn-icone" v-tooltip.top="'Editar'" :aria-label="`Editar ${data.nome}`"><i class="pi pi-pencil"></i></button>
+                  <button v-if="podeExcluir" @click="excluirGestor(data)" class="cli-btn-icone cli-btn-perigo" v-tooltip.top="'Excluir'" :aria-label="`Excluir ${data.nome}`"><i class="pi pi-trash"></i></button>
+                </div>
+              </template>
+            </Column>
+          </DataTable>
+        </TabPanel>
+
+        <!-- MAIS CADASTROS -->
+        <TabPanel v-for="tipo in (maisCadastros ? abasExtras : [])" :key="tipo">
+          <template #header><i :class="['pi', CADASTROS[tipo].icone]"></i><span>{{ CADASTROS[tipo].titulo }}</span><span class="cli-contador">{{ CADASTROS[tipo].lista.value.length }}</span></template>
+          <TabelaCadastroSimples :cadastro="CADASTROS[tipo]" :itens="CADASTROS[tipo].lista.value" :filtros="filtros" :buscando="buscando" :loading="loading"
+            :podeCriar="podeCriar" :podeEditar="podeEditar" :podeExcluir="podeExcluir"
+            @novo="abrirNome(tipo)" @editar="(item) => abrirNome(tipo, item)" @excluir="(item) => excluirNome(tipo, item)" @limpar-busca="limparBusca" />
+        </TabPanel>
+      </TabView>
+    </section>
+
+    <!-- Contato -->
+    <Dialog v-model:visible="dialogContato" :header="editandoContato ? 'Editar contato' : 'Novo contato'" modal :draggable="false"
+      :style="{ width: '560px' }" :breakpoints="{ '640px': '94vw' }" class="cli-dialog">
+      <form @submit.prevent="salvarContato" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="cli-campo sm:col-span-2">
+          <label for="ct-nome">Nome <span class="text-orange-600">*</span></label>
+          <InputText id="ct-nome" v-model="contato.nome" autofocus placeholder="Ex.: Ana Pereira" />
+        </div>
+        <div class="cli-campo">
+          <label for="ct-email">E-mail <span class="text-orange-600">*</span></label>
+          <InputText id="ct-email" v-model="contato.email" type="email" placeholder="ana@empresa.com.br" />
+        </div>
+        <div class="cli-campo">
+          <label for="ct-tel">Telefone</label>
+          <InputText id="ct-tel" v-model="contato.telefone" type="tel" placeholder="(11) 99999-0000" />
+        </div>
+        <div class="cli-campo sm:col-span-2">
+          <div class="flex items-center justify-between"><label for="ct-emp">Empresa</label>
+            <button v-if="podeCriar" type="button" @click="criarEmpresaParaContato" class="cli-link">+ Nova empresa</button></div>
+          <Dropdown inputId="ct-emp" v-model="contato.empresa_id" :options="empresas" optionLabel="nome" optionValue="id" filter showClear placeholder="Selecione a empresa" emptyMessage="Nenhuma empresa cadastrada" emptyFilterMessage="Nenhuma empresa encontrada" />
+        </div>
+        <div class="cli-campo">
+          <div class="flex items-center justify-between"><label for="ct-cargo">Cargo</label>
+            <button v-if="podeCriar" type="button" @click="criarNomeParaContato('cargos', 'cargo_id')" class="cli-link">+ Novo</button></div>
+          <Dropdown inputId="ct-cargo" v-model="contato.cargo_id" :options="cargos" optionLabel="nome" optionValue="id" filter showClear placeholder="Selecione" emptyMessage="Nenhum cargo cadastrado" emptyFilterMessage="Nenhum cargo encontrado" />
+        </div>
+        <div class="cli-campo">
+          <div class="flex items-center justify-between"><label for="ct-perfil">Perfil</label>
+            <button v-if="podeCriar" type="button" @click="criarNomeParaContato('perfis', 'perfil_id')" class="cli-link">+ Novo</button></div>
+          <Dropdown inputId="ct-perfil" v-model="contato.perfil_id" :options="perfis" optionLabel="nome" optionValue="id" showClear placeholder="Selecione" emptyMessage="Nenhum perfil cadastrado" />
+        </div>
+        <label class="sm:col-span-2 flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer">
+          <InputSwitch v-model="contato.ativo" class="cli-switch" />
+          <span>
+            <span class="block text-sm font-semibold text-slate-800 dark:text-slate-100">{{ contato.ativo ? 'Recebe pesquisas' : 'Pausado' }}</span>
+            <span class="block text-sm text-slate-500 dark:text-slate-400">{{ contato.ativo ? 'Este contato entra nos próximos envios.' : 'Este contato não recebe pesquisas até ser reativado.' }}</span>
+          </span>
+        </label>
+        <button type="submit" class="hidden" aria-hidden="true" tabindex="-1"></button>
+      </form>
+      <template #footer>
+        <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
+          <button @click="dialogContato = false" class="cli-btn-secundario">Cancelar</button>
+          <button @click="salvarContato" :disabled="saving" class="cli-btn-primario"><i v-if="saving" class="pi pi-spin pi-spinner text-xs"></i>{{ editandoContato ? 'Salvar alterações' : 'Cadastrar contato' }}</button>
+        </div>
+      </template>
+    </Dialog>
+
+    <!-- Empresa -->
+    <Dialog v-model:visible="dialogEmpresa" :header="editandoEmpresa ? 'Editar empresa' : 'Nova empresa'" modal :draggable="false"
+      :style="{ width: '500px' }" :breakpoints="{ '640px': '94vw' }" class="cli-dialog">
+      <form @submit.prevent="salvarEmpresa" class="flex flex-col gap-4">
+        <div class="cli-campo">
+          <label for="em-nome">Nome da empresa <span class="text-orange-600">*</span></label>
+          <InputText id="em-nome" v-model="empresaForm.nome" autofocus placeholder="Ex.: Distribuidora Silva" />
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="cli-campo">
+            <label for="em-seg">Segmento</label>
+            <Dropdown inputId="em-seg" v-model="empresaForm.segmento" :options="opcoesSegmento" filter showClear placeholder="Selecione" emptyMessage="Nenhum segmento cadastrado" />
+          </div>
+          <div class="cli-campo">
+            <label for="em-grupo">Grupo</label>
+            <Dropdown inputId="em-grupo" v-model="empresaForm.companhia_id" :options="companhias" optionLabel="nome" optionValue="id" filter showClear placeholder="Nenhum" emptyMessage="Nenhum grupo cadastrado" />
           </div>
         </div>
-        <template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900 flex gap-3 w-full"><Button label="Cancelar" text class="flex-1 font-bold text-[11px] text-slate-400" @click="dialogVisivel = false" /><Button :label="editando ? 'Salvar' : 'Adicionar'" :loading="saving" class="flex-1 !bg-indigo-500 !text-white !rounded-xl font-bold text-[11px] shadow-lg border-none py-3" @click="salvarCliente" /></div></template>
-      </Dialog>
-
-      <Dialog v-model:visible="dialogEmpresa" :header="editandoEmpresa ? 'Editar Conta' : 'Nova Conta'" modal :style="{width: '450px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
-        <div class="p-6 md:p-8 space-y-4 bg-slate-50/50 dark:bg-slate-900">
-          <div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Nome da Empresa *</label><InputText v-model="empresaForm.nome" class="custom-input w-full" /></div>
-          
-          <div class="flex flex-col gap-1.5 pt-2">
-            <label class="text-[10px] font-black uppercase text-indigo-500 ml-1">
-              <i class="pi pi-sitemap text-[8px]"></i> Grupo (Vínculo)
-            </label>
-            <Dropdown 
-              v-model="empresaForm.companhia" 
-              :options="companhias" 
-              optionLabel="nome" 
-              placeholder="Selecione o Grupo" 
-              filter
-              showClear
-              class="custom-dropdown w-full" 
-            />
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Segmento</label>
-            <Dropdown 
-              v-model="empresa.segmento_id" 
-              :options="segmentos" 
-              optionLabel="nome" 
-              optionValue="id" 
-              filter 
-              showClear 
-              placeholder="Selecione o Segmento" 
-              class="custom-dropdown w-full" 
-            />
-          </div>
-          
-          <div class="flex flex-col gap-1.5 pt-2">
-            <label class="text-[10px] font-black uppercase text-sky-500 ml-1">
-              <i class="pi pi-star-fill text-[8px]"></i> Responsável
-            </label>
-            <Dropdown 
-              v-model="empresaForm.gestor" 
-              :options="gestores" 
-              optionLabel="nome" 
-              placeholder="Selecione o Responsável" 
-              filter
-              showClear
-              class="custom-dropdown w-full" 
-            />
-          </div>
-
-          <div class="flex flex-col gap-1.5 pt-2">
-            <label class="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 ml-1 flex items-center gap-1"><i class="pi pi-money-bill"></i> Valor do contrato (mensal)</label>
-            <InputNumber v-model="empresaForm.valor_contrato" mode="currency" currency="BRL" locale="pt-BR" class="w-full" inputClass="custom-input w-full !text-lg !font-black !text-emerald-600 dark:!text-emerald-400 !bg-emerald-50 dark:!bg-emerald-900/10" />
-          </div>
-
-          <div class="flex flex-col gap-2 pt-2">
-            <div class="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col gap-2">
-              <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Status da Conta</label>
-              <div class="flex items-center gap-3">
-                <InputSwitch v-model="empresaForm.ativo" />
-                <span class="text-xs font-bold" :class="empresaForm.ativo ? 'text-emerald-500' : 'text-slate-500'">
-                  {{ empresaForm.ativo ? '🟢 Conta Ativa' : '⏸️ Conta Inativa' }}
-                </span>
-              </div>
-            </div>
-          </div>
-          
+        <div class="cli-campo">
+          <label for="em-resp">Responsável</label>
+          <Dropdown inputId="em-resp" v-model="empresaForm.gestor_id" :options="gestores" optionLabel="nome" optionValue="id" filter showClear placeholder="Quem cuida desta empresa" emptyMessage="Nenhum responsável cadastrado" />
         </div>
-        <template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900"><Button :label="editandoEmpresa ? 'Atualizar Conta' : 'Criar Conta'" @click="salvarEmpresa" :loading="saving" class="w-full !bg-orange-500 !text-white py-4 !rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl" /></div></template>
-      </Dialog>
-
-      <Dialog v-model:visible="dialogCompanhia" :header="editandoCompanhia ? 'Editar Grupo' : 'Novo Grupo'" modal :style="{width: '400px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
-        <div class="p-6 md:p-8 space-y-4 bg-slate-50/50 dark:bg-slate-900">
-          <div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Nome do Grupo *</label><InputText v-model="companhiaForm.nome" class="custom-input w-full" /></div>
+        <div class="cli-campo">
+          <label for="em-valor">Valor do contrato por mês</label>
+          <InputNumber inputId="em-valor" v-model="empresaForm.valor_contrato" mode="currency" currency="BRL" locale="pt-BR" :min="0" class="w-full" />
+          <span class="text-sm text-slate-500 dark:text-slate-400">Usado para mostrar quanto de receita está em risco.</span>
         </div>
-        <template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900"><Button :label="editandoCompanhia ? 'Atualizar Grupo' : 'Criar Grupo'" @click="salvarCompanhia" :loading="saving" class="w-full !bg-indigo-500 !text-white py-4 !rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl hover:scale-[1.02] transition-transform" /></div></template>
-      </Dialog>
+        <label v-if="editandoEmpresa" class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer">
+          <InputSwitch v-model="empresaForm.ativo" class="cli-switch" />
+          <span>
+            <span class="block text-sm font-semibold text-slate-800 dark:text-slate-100">{{ empresaForm.ativo ? 'Empresa ativa' : 'Empresa inativa' }}</span>
+            <span class="block text-sm text-slate-500 dark:text-slate-400">Empresas inativas somem das listas e dos relatórios.</span>
+          </span>
+        </label>
+        <button type="submit" class="hidden" aria-hidden="true" tabindex="-1"></button>
+      </form>
+      <template #footer>
+        <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
+          <button @click="dialogEmpresa = false" class="cli-btn-secundario">Cancelar</button>
+          <button @click="salvarEmpresa" :disabled="saving" class="cli-btn-primario"><i v-if="saving" class="pi pi-spin pi-spinner text-xs"></i>{{ editandoEmpresa ? 'Salvar alterações' : 'Cadastrar empresa' }}</button>
+        </div>
+      </template>
+    </Dialog>
 
-      <Dialog 
-        v-model:visible="dialogGestor" 
-        :header="editandoGestor ? 'Editar Perfil do Responsável' : 'Novo Responsável'" 
-        modal 
-        :style="{ width: '500px' }" 
-        class="custom-dialog"
-        :draggable="false"
-      >
-        <div class="p-6 md:p-8 flex flex-col gap-6 bg-white dark:bg-slate-900">
-          
-          <div class="flex flex-col items-center justify-center gap-4 py-4 bg-slate-50/50 dark:bg-slate-800/40 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
-            <div class="relative group">
-              <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-white dark:border-slate-700 shadow-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
-                <img 
-                  v-if="gestorForm.avatar" 
-                  :src="gestorForm.avatar" 
-                  @error="(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/149/149071.png'"
-                  class="w-full h-full object-cover"
-                />
-                <i v-else class="pi pi-user text-4xl text-slate-400"></i>
-              </div>
-              
-              <div class="absolute bottom-0 right-0 w-8 h-8 bg-sky-500 rounded-full border-4 border-white dark:border-slate-900 flex items-center justify-center shadow-lg">
-                <i class="pi pi-camera text-[10px] text-white"></i>
-              </div>
-            </div>
-
-            <div class="w-full px-6">
-              <label class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 block mb-2 text-center">URL da Imagem de Perfil</label>
-              <InputText 
-                v-model="gestorForm.avatar" 
-                placeholder="https://link-da-foto.com/foto.jpg" 
-                class="!bg-white dark:!bg-slate-900 !border-slate-200 dark:!border-slate-700 !rounded-xl !py-2.5 !text-[11px] w-full text-center focus:!ring-2 focus:!ring-sky-500/20" 
-              />
-            </div>
-          </div>
-
-          <div class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="flex flex-col gap-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Nome Completo</label>
-                <InputText v-model="gestorForm.nome" placeholder="Ex: Marcelo Mendes" class="custom-input-alt" />
-              </div>
-              <div class="flex flex-col gap-2">
-                <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Cargo / Papel</label>
-                <InputText v-model="gestorForm.papel" placeholder="Ex: Chapter Lead" class="custom-input-alt" />
-              </div>
-            </div>
-
-            <div class="flex flex-col gap-2">
-              <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">E-mail de Trabalho</label>
-              <InputText v-model="gestorForm.email" placeholder="email@empresa.com" class="custom-input-alt" />
-            </div>
-
-            <div class="flex flex-col gap-2">
-              <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1 flex items-center gap-2">
-                <i class="pi pi-microsoft text-indigo-500 text-[9px]"></i> Teams Webhook
-              </label>
-              <div class="flex gap-2">
-                <InputText v-model="gestorForm.teams_webhook" placeholder="https://outlook.office.com/webhook/..." class="custom-input-alt flex-1" />
-                <Button 
-                  icon="pi pi-send" 
-                  @click="testarWebhook" 
-                  :loading="testandoWebhook" 
-                  v-tooltip.top="'Enviar teste'"
-                  class="!bg-indigo-50 dark:!bg-indigo-500/10 !text-indigo-600 dark:!text-indigo-400 !border-none !rounded-xl !w-12 hover:!bg-indigo-500 hover:!text-white transition-all shadow-sm" 
-                />
-              </div>
-            </div>
+    <!-- Responsável -->
+    <Dialog v-model:visible="dialogGestor" :header="editandoGestor ? 'Editar responsável' : 'Novo responsável'" modal :draggable="false"
+      :style="{ width: '520px' }" :breakpoints="{ '640px': '94vw' }" class="cli-dialog">
+      <form @submit.prevent="salvarGestor" class="flex flex-col gap-4">
+        <div class="flex items-center gap-4">
+          <img v-if="gestorForm.avatar && !avatarQuebrado" :src="gestorForm.avatar" alt="" class="w-14 h-14 rounded-full object-cover shrink-0" @error="avatarQuebrado = true" />
+          <span v-else class="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center font-bold shrink-0">{{ gestorForm.nome ? iniciais(gestorForm.nome) : '' }}<i v-if="!gestorForm.nome" class="pi pi-user"></i></span>
+          <div class="cli-campo flex-1 min-w-0">
+            <label for="ge-foto">Link da foto (opcional)</label>
+            <InputText id="ge-foto" v-model="gestorForm.avatar" @input="avatarQuebrado = false" placeholder="https://..." />
           </div>
         </div>
-
-        <template #footer>
-          <div class="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end items-center gap-4">
-            <button 
-              @click="dialogGestor = false" 
-              class="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-            >
-              Cancelar
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="cli-campo">
+            <label for="ge-nome">Nome <span class="text-orange-600">*</span></label>
+            <InputText id="ge-nome" v-model="gestorForm.nome" placeholder="Ex.: Marcos Lima" />
+          </div>
+          <div class="cli-campo">
+            <label for="ge-papel">Função</label>
+            <InputText id="ge-papel" v-model="gestorForm.papel" placeholder="Ex.: Gerente comercial" />
+          </div>
+        </div>
+        <div class="cli-campo">
+          <label for="ge-email">E-mail</label>
+          <InputText id="ge-email" v-model="gestorForm.email" type="email" placeholder="marcos@suaempresa.com.br" />
+          <span class="text-sm text-slate-500 dark:text-slate-400">Recebe os alertas quando um cliente dele der nota baixa.</span>
+        </div>
+        <div class="cli-campo">
+          <label for="ge-teams">Canal do Microsoft Teams (opcional)</label>
+          <div class="flex gap-2">
+            <InputText id="ge-teams" v-model="gestorForm.teams_webhook" placeholder="Endereço do webhook do canal" class="flex-1 min-w-0" />
+            <button type="button" @click="testarWebhook" :disabled="!gestorForm.teams_webhook || testandoWebhook" class="cli-btn-secundario shrink-0">
+              <i :class="['pi text-xs', testandoWebhook ? 'pi-spin pi-spinner' : 'pi-send']"></i>Testar
             </button>
-            <Button 
-              label="Salvar Alterações" 
-              icon="pi pi-check" 
-              @click="salvarGestor" 
-              :loading="saving" 
-              class="!bg-slate-900 dark:!bg-white !text-white dark:!text-slate-900 !py-3 !px-8 !rounded-2xl !font-black !text-[11px] uppercase tracking-widest !border-none shadow-xl hover:scale-105 active:scale-95 transition-all" 
-            />
           </div>
-        </template>
-      </Dialog>
-
-      <Dialog v-model:visible="dialogExclusao" header="Confirmar Exclusão" modal :style="{width: '400px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
-        <div class="p-6 md:p-8 bg-slate-50/50 dark:bg-slate-900 text-center flex flex-col items-center">
-          <div class="w-16 h-16 rounded-full bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center mb-4"><i class="pi pi-exclamation-triangle text-rose-500 text-3xl"></i></div>
-          <p class="text-slate-700 dark:text-slate-300 font-bold text-sm">Tem certeza absoluta que deseja excluir {{ nomeExclusao }}?</p>
-          <p class="text-slate-500 dark:text-slate-400 text-xs mt-2 font-medium">Esta ação não poderá ser desfeita.</p>
+          <span class="text-sm text-slate-500 dark:text-slate-400">Para receber os alertas também no Teams.</span>
         </div>
-        <template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900 flex gap-3 w-full"><Button label="Cancelar" text class="flex-1 font-bold text-[11px] text-slate-400" @click="dialogExclusao = false" /><Button label="Sim, confirmo!" :loading="excluindo" @click="executarExclusao" class="flex-1 !bg-rose-500 !text-white !rounded-xl font-bold text-[11px] shadow-lg border-none py-3" /></div></template>
-      </Dialog>
+        <button type="submit" class="hidden" aria-hidden="true" tabindex="-1"></button>
+      </form>
+      <template #footer>
+        <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
+          <button @click="dialogGestor = false" class="cli-btn-secundario">Cancelar</button>
+          <button @click="salvarGestor" :disabled="saving" class="cli-btn-primario"><i v-if="saving" class="pi pi-spin pi-spinner text-xs"></i>{{ editandoGestor ? 'Salvar alterações' : 'Cadastrar responsável' }}</button>
+        </div>
+      </template>
+    </Dialog>
 
-      <Dialog v-model:visible="dialogSegmento" :header="editandoSegmento ? 'Editar Segmento' : 'Novo Segmento'" modal :style="{width: '400px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog"><div class="p-6 md:p-8 space-y-4 bg-slate-50/50 dark:bg-slate-900"><div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Nome do Segmento *</label><InputText v-model="segmentoForm.nome" class="custom-input w-full" /></div></div><template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900"><Button :label="editandoSegmento ? 'Atualizar Segmento' : 'Criar Segmento'" @click="salvarSegmento" :loading="saving" class="w-full !bg-emerald-500 !text-white py-4 !rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl hover:scale-[1.02] transition-transform" /></div></template></Dialog>
-      <Dialog v-model:visible="dialogPerfil" :header="editandoPerfil ? 'Editar Perfil' : 'Novo Perfil'" modal :style="{width: '400px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog"><div class="p-6 md:p-8 space-y-4 bg-slate-50/50 dark:bg-slate-900"><div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Nome do Perfil *</label><InputText v-model="perfilForm.nome" class="custom-input w-full" /></div></div><template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900"><Button :label="editandoPerfil ? 'Atualizar Perfil' : 'Criar Perfil'" @click="salvarPerfil" :loading="saving" class="w-full !bg-rose-500 !text-white py-4 !rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl hover:scale-[1.02] transition-transform" /></div></template></Dialog>
-      <Dialog v-model:visible="dialogCargo" :header="editandoCargo ? 'Editar Cargo' : 'Novo Cargo'" modal :style="{width: '400px'}" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog"><div class="p-6 md:p-8 space-y-4 bg-slate-50/50 dark:bg-slate-900"><div class="flex flex-col gap-1.5"><label class="text-[10px] font-black uppercase text-slate-500 ml-1">Nome do Cargo *</label><InputText v-model="cargoForm.nome" class="custom-input w-full" /></div></div><template #footer><div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900"><Button :label="editandoCargo ? 'Atualizar Cargo' : 'Criar Cargo'" @click="salvarCargo" :loading="saving" class="w-full !bg-purple-500 !text-white py-4 !rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-xl hover:scale-[1.02] transition-transform" /></div></template></Dialog>
-    </div>
+    <!-- Grupo / segmento / perfil / cargo -->
+    <Dialog v-model:visible="dialogNome" :header="`${nomeForm.original ? 'Editar' : 'Novo'} ${cadastroNome.singular}`" modal :draggable="false"
+      :style="{ width: '420px' }" :breakpoints="{ '640px': '94vw' }" class="cli-dialog">
+      <form @submit.prevent="salvarNome" class="flex flex-col gap-2">
+        <div class="cli-campo">
+          <label for="nm-nome">Nome <span class="text-orange-600">*</span></label>
+          <InputText id="nm-nome" v-model="nomeForm.nome" autofocus />
+        </div>
+        <p class="text-sm text-slate-500 dark:text-slate-400">{{ cadastroNome.descricao }}</p>
+      </form>
+      <template #footer>
+        <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
+          <button @click="dialogNome = false" class="cli-btn-secundario">Cancelar</button>
+          <button @click="salvarNome" :disabled="saving" class="cli-btn-primario"><i v-if="saving" class="pi pi-spin pi-spinner text-xs"></i>Salvar</button>
+        </div>
+      </template>
+    </Dialog>
+
+    <!-- Exclusão -->
+    <Dialog v-model:visible="dialogExclusao" header="Excluir?" modal :draggable="false"
+      :style="{ width: '440px' }" :breakpoints="{ '640px': '94vw' }" class="cli-dialog">
+      <div class="flex gap-4">
+        <span class="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 flex items-center justify-center shrink-0"><i class="pi pi-trash"></i></span>
+        <div>
+          <p class="text-slate-800 dark:text-slate-100 font-semibold">Excluir {{ exclusao.descricao }}?</p>
+          <p v-if="exclusao.aviso" class="text-sm text-slate-600 dark:text-slate-300 mt-1">{{ exclusao.aviso }}</p>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Não dá para desfazer.</p>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex flex-col-reverse sm:flex-row justify-end gap-2">
+          <button @click="dialogExclusao = false" class="cli-btn-secundario">Cancelar</button>
+          <button @click="executarExclusao" :disabled="excluindo" class="cli-btn-perigo-cheio"><i v-if="excluindo" class="pi pi-spin pi-spinner text-xs"></i>Excluir</button>
+        </div>
+      </template>
+    </Dialog>
+
+    <!-- Aviso de limite do plano (HTTP 402) -->
+    <Toast group="limite-plano" position="bottom-right" class="cli-toast-limite">
+      <template #message="{ message }">
+        <div class="flex gap-3 flex-1">
+          <i class="pi pi-lock text-orange-500 mt-0.5"></i>
+          <div class="flex flex-col gap-2">
+            <p class="font-semibold text-slate-900 dark:text-white">{{ message.summary }}</p>
+            <p class="text-sm text-slate-600 dark:text-slate-300">{{ message.detail }}</p>
+            <button @click="irParaAssinatura" class="cli-btn-primario self-start">Ver planos</button>
+          </div>
+        </div>
+      </template>
+    </Toast>
   </div>
 </template>
 
-<style scoped lang="postcss">
-@reference "tailwindcss";
-.animate-fadein { animation: fadeIn 0.4s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+<style scoped>
+@reference "../style.css";
 
-:deep(.p-tabview-panels), :deep(.p-tabview-panel) { @apply bg-transparent !important; padding: 0 !important; }
-:deep(.p-datatable .p-datatable-thead > tr > th) { @apply bg-slate-50 dark:bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 dark:border-slate-800 py-6 px-4; }
-:deep(.p-datatable .p-datatable-tbody > tr) { @apply bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors border-b border-slate-50 dark:border-slate-800/50 text-slate-700 dark:text-slate-300; }
-:deep(.p-datatable .p-datatable-tbody > tr > td) { @apply py-4 px-4; }
-:deep(.p-datatable .p-datatable-emptymessage > td) { @apply bg-white dark:bg-slate-900 text-center text-slate-400 py-8 text-sm font-medium; }
-
-:deep(.custom-input), :deep(.p-dropdown.custom-dropdown) { @apply bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-sm font-medium !important; }
-:deep(.p-dropdown.custom-dropdown .p-dropdown-trigger), :deep(.p-dropdown.custom-dropdown .p-dropdown-trigger-icon), :deep(.p-dropdown.custom-dropdown .p-dropdown-trigger svg) { @apply text-slate-400 dark:text-slate-400 !important; }
-:deep(.p-dropdown.custom-dropdown .p-dropdown-label) { @apply bg-transparent py-0 text-xs text-slate-700 dark:text-slate-200 !important; }
-:deep(.custom-dropdown.w-full) { @apply flex items-center px-1; }
-:deep(.p-dropdown-panel) { @apply dark:bg-slate-800 dark:border-slate-700 !important; }
-:deep(.p-dropdown-panel .p-dropdown-item) { @apply dark:text-slate-300 hover:dark:bg-slate-700 !important; }
-:deep(.p-dropdown-panel .p-dropdown-item.p-highlight) { @apply dark:bg-orange-500/20 dark:text-orange-500 !important; }
-
-:deep(.custom-dialog .p-dialog-header) { @apply bg-slate-50/50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-8 py-6; }
-:deep(.custom-dialog .p-dialog-content) { @apply dark:bg-slate-900; }
-:deep(.custom-dialog .p-dialog-title) { @apply text-lg font-black italic tracking-tight text-slate-800 dark:text-white; }
-
-/* TABS: REMOÇÃO DE MARGENS E FUNDOS */
-:deep(.p-tabview), 
-:deep(.p-tabview-nav-container), 
-:deep(.p-tabview-nav-content), 
-:deep(.p-tabview-nav) {
-    background: transparent !important;
-    background-color: transparent !important;
-    border: none !important;
+/* Abas */
+:deep(.cli-abas .p-tabview-nav-container),
+:deep(.cli-abas .p-tabview-nav-content) { @apply bg-transparent! border-0!; }
+:deep(.cli-abas .p-tabview-nav-content) { @apply overflow-x-auto; scrollbar-width: none; }
+:deep(.cli-abas .p-tabview-nav) { @apply bg-transparent! border-0! border-b! border-slate-200! dark:border-slate-800! flex-nowrap gap-1 mb-4; }
+:deep(.cli-abas .p-tabview-nav li .p-tabview-nav-link) {
+  @apply bg-transparent! border-0! border-b-2! border-transparent! rounded-none! px-3! py-2.5! gap-2 text-sm! font-semibold! text-slate-500! dark:text-slate-400! whitespace-nowrap shadow-none!;
+  margin: 0 !important;
 }
+:deep(.cli-abas .p-tabview-nav li .p-tabview-nav-link:hover) { @apply text-slate-800! dark:text-slate-200!; }
+:deep(.cli-abas .p-tabview-nav li.p-highlight .p-tabview-nav-link) { @apply border-orange-500! text-orange-700! dark:text-orange-400!; }
+:deep(.cli-abas .p-tabview-ink-bar) { display: none; }
+:deep(.cli-abas .p-tabview-nav-link > .pi) { @apply hidden sm:inline-block; }
+:deep(.cli-abas .p-tabview-panels) { @apply bg-transparent! p-0! text-slate-700 dark:text-slate-200; }
+:deep(.cli-contador) { @apply text-xs font-semibold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 tabular-nums; }
+:deep(.p-highlight .cli-contador) { @apply bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300; }
 
-:deep(.p-tabview-panels) {
-    background: transparent !important;
-    padding: 0 !important;   
-    margin-top: -10px !important; 
+/* Tabelas */
+:deep(.cli-tabela) { @apply bg-transparent!; }
+:deep(.cli-tabela .p-datatable-wrapper) { @apply overflow-x-auto; }
+:deep(.cli-tabela .p-datatable-thead > tr > th) { @apply bg-slate-50! dark:bg-slate-800/60! text-xs! font-semibold! text-slate-500! dark:text-slate-400! border-slate-100! dark:border-slate-800! py-3! px-4!; }
+:deep(.cli-tabela .p-datatable-thead > tr > th .p-sortable-column-icon) { @apply text-slate-400! w-3! h-3!; }
+:deep(.cli-tabela .p-datatable-tbody > tr) { @apply bg-white! dark:bg-slate-900! text-slate-700! dark:text-slate-200!; }
+:deep(.cli-tabela .p-datatable-tbody > tr:hover) { @apply bg-slate-50! dark:bg-slate-800/50!; }
+:deep(.cli-tabela .p-datatable-tbody > tr > td) { @apply py-3! px-4! text-sm border-slate-100! dark:border-slate-800!; }
+:deep(.cli-tabela .p-datatable-emptymessage > td) { @apply p-0!; }
+:deep(.cli-tabela .p-paginator) { @apply bg-transparent! border-0! text-sm; }
+:deep(.cli-tabela .p-paginator .p-paginator-page.p-highlight) { @apply bg-orange-50! text-orange-700! dark:bg-orange-500/15! dark:text-orange-300!; }
+:deep(.cli-tabela .p-paginator button) { @apply dark:text-slate-400!; }
+:deep(.cli-tabela .p-datatable-loading-overlay) { @apply bg-white/60! dark:bg-slate-900/60!; }
+/* Celular: cada linha vira um cartão (responsiveLayout="stack") */
+:deep(.cli-tabela .p-column-title) { @apply text-sm font-semibold text-slate-500 dark:text-slate-400 mr-4 shrink-0; }
+@media (max-width: 767px) {
+  :deep(.cli-tabela .p-datatable-tbody > tr) { @apply border-b! border-slate-200! dark:border-slate-800! py-1; }
+  :deep(.cli-tabela .p-datatable-tbody > tr > td) { @apply border-0! py-2! px-1! gap-2 min-w-0; }
+  :deep(.cli-tabela .p-datatable-tbody > tr > td:last-child .flex) { @apply justify-end; }
+  :deep(.cli-tabela .p-datatable-tbody > tr.p-datatable-emptymessage > td) { @apply block! w-full!; }
 }
+</style>
 
-:deep(.p-tabview-nav li) {
-    background: transparent !important;
-    border: none !important;
-    margin-right: 6px !important;
-    margin-bottom: 0 !important; 
-}
+<style>
+@reference "../style.css";
+/* Estilos que também valem dentro dos diálogos e do toast (que são renderizados fora da página) */
+.cli-btn-primario { @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap; }
+.cli-btn-secundario { @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:border-orange-300 hover:text-orange-700 dark:hover:text-orange-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap; }
+.cli-btn-perigo-cheio { @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold transition-colors disabled:opacity-60; }
+.cli-btn-quadrado { @apply w-10 h-10 shrink-0 inline-flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-orange-600 hover:border-orange-300; }
+.cli-btn-icone { @apply w-9 h-9 inline-flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-100 transition-colors; }
+.cli-btn-icone.cli-btn-perigo:hover { @apply bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400; }
+.cli-btn-icone .pi { @apply text-sm; }
+.cli-link { @apply text-sm font-semibold text-orange-600 dark:text-orange-400 hover:underline; }
+.cli-switch.p-inputswitch.p-highlight .p-inputswitch-slider { @apply bg-orange-500!; }
+.cli-switch.p-inputswitch:not(.p-highlight) .p-inputswitch-slider { @apply dark:bg-slate-700!; }
 
-:deep(.p-tabview-nav li .p-tabview-nav-link) {
-    @apply bg-slate-100 dark:bg-slate-800 text-slate-500 !important;
-    border: none !important;
-    border-radius: 12px !important;
-    padding: 10px 18px !important; 
-    transition: all 0.2s ease !important;
-}
+/* Diálogos */
+.cli-dialog.p-dialog { @apply rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-xl; }
+.cli-dialog .p-dialog-header { @apply bg-white dark:bg-slate-900 px-6! py-4! border-b border-slate-100 dark:border-slate-800; }
+.cli-dialog .p-dialog-title { @apply text-lg! font-bold! text-slate-900 dark:text-white; }
+.cli-dialog .p-dialog-header-icon { @apply text-slate-500! dark:text-slate-400! hover:bg-slate-100! dark:hover:bg-slate-800!; }
+.cli-dialog .p-dialog-content { @apply bg-white dark:bg-slate-900 px-6! py-5! text-slate-700 dark:text-slate-200; }
+.cli-dialog .p-dialog-footer { @apply bg-slate-50 dark:bg-slate-900 px-6! py-4! border-t border-slate-100 dark:border-slate-800; }
+.cli-campo { @apply flex flex-col gap-1.5 min-w-0; }
+.cli-campo label { @apply text-sm font-semibold text-slate-700 dark:text-slate-200; }
+.cli-campo .p-inputtext,
+.cli-campo .p-dropdown { @apply w-full rounded-xl! border-slate-300! dark:border-slate-700! bg-white! dark:bg-slate-950! text-sm! text-slate-800! dark:text-slate-100!; }
+.cli-campo .p-inputtext { @apply h-10 px-3!; }
+.cli-campo .p-dropdown .p-inputtext { @apply h-auto border-0! bg-transparent!; }
+.cli-campo .p-dropdown .p-dropdown-label.p-placeholder,
+.cli-campo .p-inputtext::placeholder { @apply text-slate-400!; }
+.cli-campo .p-dropdown .p-dropdown-trigger { @apply text-slate-400!; }
+.cli-campo .p-inputtext:enabled:focus,
+.cli-campo .p-dropdown:not(.p-disabled).p-focus { @apply border-orange-400! shadow-none! ring-2 ring-orange-500/20; }
+.cli-campo .p-inputnumber { @apply w-full; }
 
-:deep(.p-tabview-nav li.p-highlight .p-tabview-nav-link) {
-    @apply bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md !important;
-}
-
-:deep(.p-tabview .p-tabview-nav) {
-    border-bottom: none !important;
-}
+/* Toast do limite do plano */
+.cli-toast-limite .p-toast-message.p-toast-message-warn { @apply bg-white! dark:bg-slate-900! border! border-orange-200! dark:border-orange-500/30! border-l-4! border-l-orange-500! rounded-xl! shadow-lg!; }
+.cli-toast-limite .p-toast-message-content { @apply p-4! items-start; }
+.cli-toast-limite .p-toast-icon-close { @apply text-slate-400!; }
 </style>

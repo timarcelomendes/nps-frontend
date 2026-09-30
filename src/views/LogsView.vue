@@ -268,8 +268,8 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped lang="postcss">
-@reference "tailwindcss";
+<style scoped>
+@reference "../style.css";
 
 .animate-fadein { 
   animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); 

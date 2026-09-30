@@ -56,7 +56,7 @@ const arquivoSelecionado = ref(null);
 // ==========================================
 // Esconde a sidebar/menu em páginas específicas
 const exibirLayout = computed(() => {
-  const rotasSemMenu = ['Login', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica', 'FormularioPublico'];
+  const rotasSemMenu = ['Login', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica', 'FormularioPublico', 'Cadastro', 'Termos', 'Privacidade'];
   return !rotasSemMenu.includes(route.name);
 });
 
@@ -118,7 +118,7 @@ const logout = () => {
 };
 
 const exibirBotaoChat = computed(() => {
-  const rotasPublicas = ['Login', 'ResetPassword', 'RecuperarSenha', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica', 'FormularioPublico'];
+  const rotasPublicas = ['Login', 'ResetPassword', 'RecuperarSenha', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica', 'FormularioPublico', 'Cadastro', 'Termos', 'Privacidade'];
   return !rotasPublicas.includes(route.name);
 });
 
@@ -293,6 +293,21 @@ const scrollToBottom = () => {
 const clientesRecentes = ref([]);
 const tagsCarregando = ref(true);
 
+// Aviso de teste grátis / pagamento (aparece no topo de todas as telas internas)
+const assinatura = ref(null);
+const carregarAssinatura = async () => {
+  if (!sessionStorage.getItem('token')) { assinatura.value = null; return; }
+  try { assinatura.value = (await api.get('/assinatura')).data; } catch (e) { assinatura.value = null; }
+};
+const avisoAssinatura = computed(() => {
+  const a = assinatura.value;
+  if (!a) return null;
+  if (a.status === 'teste') return a.dias_restantes <= 5 ? { texto: a.mensagem, acao: 'Escolher plano', grave: false } : null;
+  if (['teste_expirado', 'atrasada', 'cancelada'].includes(a.status)) return { texto: a.mensagem, acao: a.status === 'atrasada' ? 'Pagar agora' : 'Escolher plano', grave: !a.pode_enviar };
+  return null;
+});
+watch(() => route.name, (nome) => { if (!['Login', 'Cadastro'].includes(nome)) carregarAssinatura(); });
+
 const carregarAtalhosChat = async () => {
   if (!sessionStorage.getItem('token')) { tagsCarregando.value = false; return; }
   tagsCarregando.value = true;
@@ -384,6 +399,10 @@ onMounted(() => {
 
         <router-link v-if="isAdmin" to="/configuracoes" class="nav-item" @click="mobileMenuAberto = false">
           <i class="pi pi-cog"></i> <span>Configurações</span>
+        </router-link>
+
+        <router-link v-if="isAdmin" to="/assinatura" class="nav-item" @click="mobileMenuAberto = false">
+          <i class="pi pi-credit-card"></i> <span>Assinatura</span>
         </router-link>
 
         <router-link to="/acoes" class="nav-item border border-orange-100 dark:border-orange-500/20 bg-orange-50/50 dark:bg-orange-500/10" @click="mobileMenuAberto = false">
@@ -578,6 +597,10 @@ onMounted(() => {
               <i class="pi pi-cog text-[1.1rem] shrink-0 text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-white transition-colors"></i>
               <span v-show="sidebarExpandida" class="text-[13px] tracking-tight font-medium">Configurações</span>
           </router-link>
+          <router-link v-if="isAdmin" to="/assinatura" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors group" v-tooltip.right="!sidebarExpandida ? 'Assinatura' : null">
+              <i class="pi pi-credit-card text-[1.1rem] shrink-0 text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-white transition-colors"></i>
+              <span v-show="sidebarExpandida" class="text-[13px] tracking-tight font-medium">Assinatura</span>
+          </router-link>
           
           <button @click="sidebarExpandida = !sidebarExpandida" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors group">
               <i :class="['pi text-[1rem] shrink-0 transition-transform duration-300', sidebarExpandida ? 'pi-align-right' : 'pi-align-left']"></i>
@@ -640,7 +663,13 @@ onMounted(() => {
         </div>
       </header>
 
-      <main class="flex-1 overflow-y-auto relative" :class="['PesquisaPublica', 'FormularioPublico'].includes(route.name) ? '' : 'p-6 md:p-8'">
+      <main class="flex-1 overflow-y-auto relative" :class="['PesquisaPublica', 'FormularioPublico', 'Cadastro', 'Termos', 'Privacidade'].includes(route.name) ? '' : 'p-6 md:p-8'">
+         <div v-if="exibirLayout && avisoAssinatura" class="mb-4 rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 text-sm"
+              :class="avisoAssinatura.grave ? 'bg-rose-50 text-rose-800 dark:bg-rose-500/10 dark:text-rose-300' : 'bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300'">
+           <i :class="avisoAssinatura.grave ? 'pi pi-exclamation-triangle' : 'pi pi-clock'"></i>
+           <span class="flex-1">{{ avisoAssinatura.texto }}</span>
+           <router-link v-if="isAdmin && route.name !== 'Assinatura'" to="/assinatura" class="font-semibold underline">{{ avisoAssinatura.acao }}</router-link>
+         </div>
          <router-view />
       </main>
 
@@ -847,8 +876,8 @@ onMounted(() => {
 
 </template>
 
-<style scoped lang="postcss">
-@reference "tailwindcss"; /* 👈 ESTA É A CHAVE NO TAILWIND V4! */
+<style scoped>
+@reference "./style.css";
 
 /* Transições suaves do menu */
 .animate-fadein { 

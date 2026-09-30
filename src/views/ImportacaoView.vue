@@ -493,8 +493,8 @@ const reiniciar = () => {
   </div>
 </template>
 
-<style scoped lang="postcss">
-@reference "tailwindcss";
+<style scoped>
+@reference "../style.css";
 
 .animate-fadein { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -509,5 +509,6 @@ const reiniciar = () => {
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-slate-200 dark:bg-slate-700 rounded-full; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgb(226 232 240); border-radius: 9999px; }
+:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb { background: rgb(51 65 85); }
 </style>

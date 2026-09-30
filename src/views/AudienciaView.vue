@@ -858,8 +858,8 @@ onUnmounted(() => {
   </div>
 </template>
 
-<style scoped lang="postcss">
-@reference "tailwindcss";
+<style scoped>
+@reference "../style.css";
 
 .animate-fadein { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
@@ -885,7 +885,7 @@ onUnmounted(() => {
 
 :deep(.custom-input-minimal::placeholder),
 :deep(.custom-calendar-minimal .p-inputtext::placeholder) {
-    @apply text-slate-300 dark:text-slate-600 font-black !important;
+    @apply text-slate-300! dark:text-slate-600! font-black!;
 }
 
 :deep(.p-inputtext:enabled:focus),
@@ -898,20 +898,20 @@ onUnmounted(() => {
 }
 
 :deep(.custom-dropdown-minimal .p-dropdown-label) {
-    @apply p-0 font-black flex items-center text-[10px] uppercase text-slate-800 dark:text-white !important;
+    @apply p-0! font-black! flex! items-center! text-[10px]! uppercase! text-slate-800! dark:text-white!;
 }
 :deep(.custom-dropdown-minimal .p-dropdown-trigger) {
-    @apply w-4 text-slate-400 !important;
+    @apply w-4! text-slate-400!;
 }
 
 :deep(.p-dropdown-panel), :deep(.p-datepicker) {
-    @apply dark:bg-slate-800 dark:border-slate-700 shadow-xl !important;
+    @apply dark:bg-slate-800! dark:border-slate-700! shadow-xl!;
 }
 :deep(.p-dropdown-panel .p-dropdown-item) {
-    @apply text-xs font-medium text-slate-600 dark:text-slate-300 !important;
+    @apply text-xs! font-medium! text-slate-600! dark:text-slate-300!;
 }
 :deep(.p-dropdown-panel .p-dropdown-item.p-highlight) {
-    @apply bg-sky-500/10 text-sky-600 dark:text-sky-400 !important;
+    @apply bg-sky-500/10! text-sky-600! dark:text-sky-400!;
 }
 
 /* Esconde a barra de scroll horizontal mas mantém a funcionalidade */
@@ -932,7 +932,7 @@ onUnmounted(() => {
 :deep(.p-datatable .p-datatable-tbody > tr > td) { @apply py-4 px-4; }
 
 :deep(.p-checkbox .p-checkbox-box) { @apply border-slate-300 dark:border-slate-600 rounded-md transition-colors; }
-:deep(.p-checkbox.p-highlight .p-checkbox-box) { @apply border-sky-500 bg-sky-500 !important; }
+:deep(.p-checkbox.p-highlight .p-checkbox-box) { @apply border-sky-500! bg-sky-500!; }
 
 :deep(.custom-dialog .p-dialog-header) { @apply bg-slate-50/50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-8 py-6; }
 :deep(.custom-dialog .p-dialog-content) { @apply dark:bg-slate-900; }

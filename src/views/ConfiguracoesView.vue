@@ -1270,6 +1270,22 @@ const carregarContasPlataforma = async () => {
     contasPlataforma.value = res.data || [];
   } catch (error) { console.error(error); }
 };
+const SITUACOES = {
+  cortesia: ['Cortesia', 'bg-sky-50 text-sky-700'], teste: ['Teste grátis', 'bg-amber-50 text-amber-700'],
+  ativa: ['Ativa', 'bg-emerald-50 text-emerald-700'], atrasada: ['Em atraso', 'bg-rose-50 text-rose-700'],
+  cancelada: ['Cancelada', 'bg-slate-100 text-slate-600'],
+};
+const rotuloSituacao = (s) => (SITUACOES[s] || [s || '—'])[0];
+const corSituacao = (s) => (SITUACOES[s] || ['', 'bg-slate-100 text-slate-600'])[1];
+const ajustarConta = async (conta, dados) => {
+  try {
+    await api.put(`/superadmin/contas/${conta.id}`, dados);
+    toast.add({ severity: 'success', summary: `Conta ${conta.nome} atualizada`, life: 3000 });
+    carregarContasPlataforma();
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Erro', detail: error.response?.data?.detail || 'Não foi possível ajustar.', life: 5000 });
+  }
+};
 const criarContaPlataforma = async () => {
   criandoConta.value = true;
   try {
@@ -2579,10 +2595,27 @@ onMounted(() => {
             <DataTable :value="contasPlataforma" class="text-sm" stripedRows>
               <Column field="id" header="#" />
               <Column field="nome" header="Empresa" />
+              <Column header="Situação">
+                <template #body="{ data }">
+                  <span :class="['text-xs font-semibold px-2 py-1 rounded-md', corSituacao(data.status_assinatura)]">{{ rotuloSituacao(data.status_assinatura) }}</span>
+                  <span v-if="data.status_assinatura === 'teste' && data.teste_ate" class="block text-xs text-slate-500 mt-1">até {{ new Date(data.teste_ate).toLocaleDateString('pt-BR') }}</span>
+                </template>
+              </Column>
               <Column field="plano" header="Plano" />
+              <Column field="origem" header="Origem" />
               <Column field="usuarios" header="Usuários" />
-              <Column field="clientes" header="Clientes" />
+              <Column header="Clientes">
+                <template #body="{ data }">{{ data.clientes }}<span v-if="data.limite_clientes" class="text-slate-400"> / {{ data.limite_clientes }}</span></template>
+              </Column>
               <Column field="respostas" header="Respostas" />
+              <Column header="Ações">
+                <template #body="{ data }">
+                  <div class="flex gap-1">
+                    <button @click="ajustarConta(data, { dias_teste: 14 })" class="text-xs px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200" v-tooltip.top="'Dá mais 14 dias de teste'">+14 dias</button>
+                    <button @click="ajustarConta(data, { status_assinatura: 'cortesia' })" class="text-xs px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200" v-tooltip.top="'Libera sem cobrança e sem limite'">Cortesia</button>
+                  </div>
+                </template>
+              </Column>
             </DataTable>
           </div>
         </div>
@@ -2661,8 +2694,8 @@ onMounted(() => {
   </div>
 </template>
 
-<style scoped lang="postcss">
-@reference "tailwindcss";
+<style scoped>
+@reference "../style.css";
 
 .animate-fadein { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -2687,7 +2720,7 @@ onMounted(() => {
 }
 
 :deep(.p-tabview-nav li .p-tabview-nav-link) {
-    @apply bg-slate-100 dark:bg-slate-800 text-slate-500 !important;
+    @apply bg-slate-100! dark:bg-slate-800! text-slate-500!;
     border: none !important; 
     border-radius: 10px !important;
     padding: 0 14px !important;
@@ -2701,7 +2734,7 @@ onMounted(() => {
 }
 
 :deep(.p-tabview-nav li.p-highlight .p-tabview-nav-link) {
-    @apply bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md !important;
+    @apply bg-slate-900! dark:bg-white! text-white! dark:text-slate-900! shadow-md!;
 }
 
 :deep(.p-tabview .p-tabview-nav) { border-bottom: none !important; }

@@ -34,6 +34,10 @@ const routes = [
     component: () => import('../views/PesquisaPublicaView.vue'),
     meta: { requiresAuth: false }
   },
+  { path: '/cadastro', name: 'Cadastro', component: () => import('../views/CadastroView.vue'), meta: { requiresAuth: false } },
+  { path: '/termos', name: 'Termos', component: () => import('../views/LegalView.vue'), meta: { requiresAuth: false } },
+  { path: '/privacidade', name: 'Privacidade', component: () => import('../views/LegalView.vue'), meta: { requiresAuth: false } },
+  { path: '/assinatura', name: 'Assinatura', component: () => import('../views/AssinaturaView.vue'), meta: { requiresAuth: true } },
   {
     // Link público do formulário (site, QR Code)
     path: '/f/:codigo',
@@ -151,7 +155,7 @@ router.beforeEach((to, from, next) => {
   // 🎯 NORMALIZAÇÃO TOTAL: Tudo em minúsculo e sem depender de acentos complexos
   const rawTipo = (sessionStorage.getItem('usuario_tipo') || 'usuário').toLowerCase();
 
-  if (to.path === '/login' && isAuthenticated) return next('/');
+  if ((to.path === '/login' || to.path === '/cadastro') && isAuthenticated) return next('/');
   if (to.meta.requiresAuth && !isAuthenticated) return next('/login');
 
   if (to.meta.roles) {

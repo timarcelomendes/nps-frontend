@@ -1,0 +1,71 @@
+/* Planos de Ação: estilos de elementos do PrimeVue que abrem fora da página (diálogo, menus, listas). */
+
+/* Diálogo */
+.acoes-dialog .p-dialog-header { align-items: flex-start; padding: 1.25rem 1.25rem 1rem; border-bottom: 1px solid #f1f5f9; }
+.acoes-dialog .p-dialog-content { padding: 1.25rem; }
+.acoes-dialog .p-dialog-footer { padding: 1rem 1.25rem; border-top: 1px solid #f1f5f9; }
+.dark .acoes-dialog .p-dialog-header,
+.dark .acoes-dialog .p-dialog-content,
+.dark .acoes-dialog .p-dialog-footer { background: #0f172a; color: #e2e8f0; border-color: #1e293b; }
+.dark .acoes-dialog .p-dialog-header-icon { color: #94a3b8; }
+.dark .acoes-dialog .p-dialog-header-icon:hover { background: #1e293b; color: #fff; }
+
+/* Campos do formulário */
+.acoes-campo.p-inputtext,
+.acoes-campo .p-inputtext,
+.acoes-campo.p-dropdown,
+.acoes-campo.p-inputtextarea {
+  border-radius: 0.625rem;
+  border-color: #cbd5e1;
+  font-size: 0.875rem;
+}
+.acoes-campo.p-inputtext,
+.acoes-campo .p-inputtext,
+.acoes-campo.p-inputtextarea { padding: 0.625rem 0.75rem; }
+.acoes-campo.p-dropdown .p-dropdown-label { padding: 0.625rem 0.75rem; font-size: 0.875rem; }
+.acoes-campo.p-inputtext:enabled:focus,
+.acoes-campo .p-inputtext:enabled:focus,
+.acoes-campo.p-inputtextarea:enabled:focus,
+.acoes-campo.p-dropdown.p-focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15); }
+.acoes-campo.p-inputtext:enabled:hover,
+.acoes-campo .p-inputtext:enabled:hover,
+.acoes-campo.p-dropdown:not(.p-disabled):hover { border-color: #fdba74; }
+.dark .acoes-campo.p-inputtext,
+.dark .acoes-campo .p-inputtext,
+.dark .acoes-campo.p-dropdown,
+.dark .acoes-campo.p-inputtextarea { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+.dark .acoes-campo.p-dropdown .p-dropdown-label,
+.dark .acoes-campo.p-dropdown .p-dropdown-trigger { color: #e2e8f0; background: transparent; }
+.dark .acoes-campo.p-dropdown .p-dropdown-label.p-placeholder,
+.dark .acoes-campo ::placeholder { color: #64748b; }
+
+/* Filtros (MultiSelect / Calendar sem borda dentro da caixa) */
+.acoes-filtro.p-multiselect,
+.acoes-filtro .p-inputtext { border: none !important; box-shadow: none !important; background: transparent !important; color: inherit !important; }
+.acoes-filtro.p-multiselect .p-multiselect-label,
+.acoes-filtro .p-inputtext { padding: 0.25rem 0; font-size: 0.875rem; color: inherit; }
+.acoes-filtro.p-multiselect .p-multiselect-label.p-placeholder,
+.acoes-filtro .p-inputtext::placeholder { color: #64748b; }
+.acoes-filtro.p-multiselect .p-multiselect-trigger { width: 1.5rem; color: #94a3b8; background: transparent; }
+
+/* Listas abertas pelos filtros, menus e calendário no modo escuro */
+.dark .acoes-painel.p-multiselect-panel,
+.dark .acoes-menu.p-menu { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
+.dark .acoes-painel.p-multiselect-panel .p-multiselect-header { background: #0f172a; border-color: #334155; }
+.dark .acoes-painel.p-multiselect-panel .p-multiselect-item,
+.dark .acoes-menu.p-menu .p-menuitem-content .p-menuitem-link .p-menuitem-text,
+.dark .acoes-menu.p-menu .p-menuitem-content .p-menuitem-link .p-menuitem-icon { color: #e2e8f0; }
+.dark .acoes-painel.p-multiselect-panel .p-multiselect-item:not(.p-highlight):not(.p-disabled):hover,
+.dark .acoes-menu.p-menu .p-menuitem:not(.p-highlight):not(.p-disabled) > .p-menuitem-content:hover,
+.dark .acoes-menu.p-menu .p-menuitem.p-focus > .p-menuitem-content { background: #334155; }
+.dark .acoes-menu.p-menu .p-submenu-header { background: transparent; color: #94a3b8; }
+.dark .acoes-menu.p-menu .p-menuitem-separator { border-color: #334155; }
+.acoes-painel.p-multiselect-panel .p-multiselect-item.p-highlight { background: #fff7ed; color: #c2410c; }
+.dark .acoes-painel.p-multiselect-panel .p-multiselect-item.p-highlight { background: rgba(249, 115, 22, 0.15); color: #fdba74; }
+.acoes-menu.p-menu .p-submenu-header { font-size: 0.75rem; font-weight: 600; color: #64748b; padding: 0.5rem 0.75rem 0.25rem; }
+.acoes-menu.p-menu .p-menuitem-link { font-size: 0.875rem; }
+
+/* Guia lateral */
+.dark .acoes-ajuda.p-sidebar { background: #0f172a; color: #e2e8f0; }
+.dark .acoes-ajuda .p-sidebar-header { color: #fff; }
+.dark .acoes-ajuda .p-sidebar-close { color: #94a3b8; }

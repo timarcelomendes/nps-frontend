@@ -1,0 +1,79 @@
+/*
+ * Estilos da tela de Respostas que precisam valer fora do componente
+ * (janelas do PrimeVue são renderizadas direto no <body>).
+ * Todas as regras usam o prefixo .resp- para não vazar para outras telas.
+ */
+
+/* ---------- Campos (filtros e formulários) ---------- */
+.resp-campo.p-inputtext,
+.resp-campo.p-dropdown,
+.resp-campo.p-calendar .p-inputtext {
+  width: 100%;
+  min-height: 2.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #1e293b;
+  font-size: 0.875rem;
+  box-shadow: none;
+}
+.resp-campo.p-inputtext,
+.resp-campo.p-calendar .p-inputtext { padding: 0.5rem 0.75rem; }
+.resp-campo.p-dropdown .p-dropdown-label { padding: 0.5rem 0.75rem; font-size: 0.875rem; color: inherit; }
+.resp-campo.p-dropdown .p-dropdown-label.p-placeholder,
+.resp-campo.p-inputtext::placeholder,
+.resp-campo.p-calendar .p-inputtext::placeholder { color: #94a3b8; }
+.resp-campo.p-inputtext:enabled:hover,
+.resp-campo.p-dropdown:not(.p-disabled):hover,
+.resp-campo.p-calendar .p-inputtext:enabled:hover { border-color: #fdba74; }
+.resp-campo.p-inputtext:enabled:focus,
+.resp-campo.p-dropdown:not(.p-disabled).p-focus,
+.resp-campo.p-calendar .p-inputtext:enabled:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+textarea.resp-campo.p-inputtext { line-height: 1.5; }
+
+.dark .resp-campo.p-inputtext,
+.dark .resp-campo.p-dropdown,
+.dark .resp-campo.p-calendar .p-inputtext {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+.dark .resp-campo.p-dropdown .p-dropdown-trigger { color: #94a3b8; }
+
+/* Item selecionado nas listas: laranja da marca */
+/* (painéis recebem panel-class="resp-painel") */
+.resp-painel .p-dropdown-items .p-dropdown-item.p-highlight { background: #fff7ed; color: #c2410c; }
+.dark .resp-painel .p-dropdown-items .p-dropdown-item.p-highlight { background: rgba(249, 115, 22, 0.15) !important; color: #fdba74 !important; }
+
+/* Interruptor ligado em laranja */
+.resp-switch.p-inputswitch.p-inputswitch-checked .p-inputswitch-slider { background: #f97316; }
+
+/* ---------- Janelas ---------- */
+.resp-dialog.p-dialog { border-radius: 1rem; overflow: hidden; }
+.resp-dialog .p-dialog-header { padding: 1.25rem 1.5rem 0.75rem; }
+.resp-dialog .p-dialog-title { font-size: 1.125rem; font-weight: 700; color: #0f172a; }
+.resp-dialog .p-dialog-content { padding: 0.25rem 1.5rem 1.25rem; }
+.resp-dialog .p-dialog-footer { padding: 1rem 1.5rem; border-top: 1px solid #f1f5f9; }
+
+.dark .resp-dialog .p-dialog-header,
+.dark .resp-dialog .p-dialog-content,
+.dark .resp-dialog .p-dialog-footer { background: #0f172a; color: #e2e8f0; }
+.dark .resp-dialog .p-dialog-footer { border-color: #1e293b; }
+.dark .resp-dialog .p-dialog-title { color: #fff; }
+.dark .resp-dialog .p-dialog-header-icon { color: #94a3b8; }
+.dark .resp-dialog .p-dialog-header-icon:hover { background: #1e293b; color: #fff; }
+
+/* ---------- Calendário do filtro de período ---------- */
+.resp-painel.p-datepicker table td > span.p-highlight { background: #fff7ed; color: #c2410c; }
+.dark .resp-painel.p-datepicker table td > span { color: #cbd5e1; }
+.dark .resp-painel.p-datepicker .p-datepicker-header { background: #1e293b; color: #fff; border-color: #334155; }
+.dark .resp-painel.p-datepicker .p-datepicker-header .p-datepicker-title button { color: #fff; }
+.dark .resp-painel.p-datepicker table td > span.p-highlight { background: rgba(249, 115, 22, 0.2); color: #fdba74; }
+.dark .resp-painel.p-datepicker table td > span:not(.p-highlight):not(.p-disabled):hover { background: #334155; }
+
+/* O rótulo interno do Dropdown também é um .p-inputtext: sem borda/fundo próprios */
+.resp-campo.p-dropdown .p-dropdown-label,
+.dark .resp-campo.p-dropdown .p-dropdown-label { border: 0; background: transparent; box-shadow: none; }

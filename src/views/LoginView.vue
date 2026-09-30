@@ -268,6 +268,9 @@
           </Button>
 
           <div class="mt-4 flex flex-col gap-4 text-center">
+            <p v-if="isLoginMode" class="text-sm text-slate-600 dark:text-slate-300">
+              Nova por aqui? <a href="/cadastro" @click.prevent="$router.push('/cadastro')" class="font-bold text-orange-600 hover:underline">Teste grátis por 14 dias</a>
+            </p>
             <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">
               {{ isLoginMode ? 'Não tem acesso?' : 'Já possui uma conta?' }}
               <a @click.prevent="alternarModo" href="#" class="font-bold text-slate-800 dark:text-white hover:text-orange-600 dark:hover:text-orange-500 transition-colors duration-300">
@@ -628,8 +631,8 @@ const reenviarEmail = async () => {
 };
 </script>
 
-<style scoped lang="postcss">
-@reference "tailwindcss";
+<style scoped>
+@reference "../style.css";
 
 /* =========================================================
    1. ANIMAÇÕES GERAIS E LAYOUT
