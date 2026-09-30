@@ -1,940 +1,649 @@
 <script setup>
-import { ref, onMounted, computed, onUnmounted } from 'vue';
-import api from '../services/api';
+// Envios: quem está na fila para receber a pesquisa, o que já saiu, quem respondeu,
+// lembretes, erros (com a causa em linguagem simples) e envio manual com confirmação.
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
-import { FilterMatchMode } from 'primevue/api';
-import { temPermissao } from '../utils/permissoes';
-
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
-import Button from 'primevue/button';
-import InputText from 'primevue/inputtext';
-import Dialog from 'primevue/dialog';
-import Dropdown from 'primevue/dropdown';
-import Tag from 'primevue/tag';
-import Calendar from 'primevue/calendar';
 import InputSwitch from 'primevue/inputswitch';
-import Sidebar from 'primevue/sidebar';
+import api from '../services/api';
+import { temPermissao } from '../utils/permissoes';
+import EstadoVazio from '../components/clientes/EstadoVazio.vue';
+import AvisoAssinatura from '../components/envios/AvisoAssinatura.vue';
+import AjudaEnvios from '../components/envios/AjudaEnvios.vue';
+import DialogRegrasEnvio from '../components/envios/DialogRegrasEnvio.vue';
+import DialogConfirmarEnvio from '../components/envios/DialogConfirmarEnvio.vue';
+import DialogNovoContato from '../components/envios/DialogNovoContato.vue';
+import HistoricoEnvios from '../components/envios/HistoricoEnvios.vue';
+import { causaSimples, detalheDoErro, ehErroAssinatura, extrairErroDoLog, formatarData, plural } from '../components/envios/mensagens';
 
 const toast = useToast();
+const router = useRouter();
 
-// ==========================================
-// 1. ESTADOS PRINCIPAIS
-// ==========================================
-const clientes = ref([]); 
-const empresas = ref([]); 
-const perfis = ref([{ nome: 'Decisor' }, { nome: 'Influenciador' }, { nome: 'Usuário Final' }, { nome: 'Técnico' }]);   
+const podeDisparar = temPermissao('audiencia:disparar');
+const podeCriar = temPermissao('clientes:criar');
+const ehAdmin = sessionStorage.getItem('usuario_tipo') === 'Admin';
+
+// ---------- Dados ----------
+const clientes = ref([]);
+const empresas = ref([]);
+const perfis = ref([]);
 const cargos = ref([]);
-const segmentos = ref([]);   
+const segmentos = ref([]);
+const gestores = ref([]);
+const companhias = ref([]);
+const logs = ref([]);
+const regras = ref({});
+const lembretes = ref({ ativo: false, qtd_maxima: 0, dias: [] });
+const bloqueioAssinatura = ref('');
 const loading = ref(true);
-const ajudaVisivel = ref(false);
+const carregandoLogs = ref(true);
 
-const gestores = ref([{ label: 'Todos', value: null }]);
-const companhias = ref([{ label: 'Todas', value: null }]); 
-const filtroGestor = ref(null);
-const filtroCompanhia = ref(null); 
-const mostrarApenasAmanha = ref(false);
-const mostrarInativos = ref(false);
+const recorrencia = computed(() => parseInt(regras.value.recorrencia_dias, 10) || 90);
+const enviosAtivos = computed(() => String(regras.value.envios_ativos).toLowerCase() === 'true');
+const roboAtivo = computed(() => String(regras.value.robo_ativo).toLowerCase() === 'true');
+const automaticoLigado = computed(() => enviosAtivos.value && roboAtivo.value);
+const textoDiasLembrete = computed(() => {
+  const d = lembretes.value.dias || [];
+  const lista = d.length > 1 ? d.slice(0, -1).join(', ') + ' e ' + d[d.length - 1] : String(d[0] ?? '');
+  return `${d.length === 1 ? 'Lembrete' : 'Lembretes'} ${lista} dias depois do envio, às 10h20`;
+});
 
-const enviandoEmail = ref(false);
-const idsEnviando = ref([]); 
-const clientesSelecionados = ref([]);
-
-// ==========================================
-// ⚙️ CONFIGURAÇÕES DA RÉGUA DE DISPARO
-// ==========================================
-const dialogRegras = ref(false);
-const savingConfig = ref(false);
-const regrasNPS = ref({ lembrete_dias: 3, recorrencia_dias: 90 });
-
-// Formulário temporário para o Modal
-const regrasForm = ref({ recorrencia_dias: 90, lembrete_dias: 3 });
-
-const abrirConfiguracoes = () => {
-  regrasForm.value = { ...regrasNPS.value };
-  dialogRegras.value = true;
+const carregarCadastros = async () => {
+  const pegar = async (url, alvo) => { try { const r = await api.get(url); if (Array.isArray(r.data)) alvo.value = r.data; } catch (e) { /* cadastro opcional */ } };
+  await Promise.all([
+    pegar('/cadastros/empresas', empresas), pegar('/cadastros/perfis', perfis), pegar('/cadastros/cargos', cargos),
+    pegar('/cadastros/segmentos', segmentos), pegar('/cadastros/gestores', gestores), pegar('/cadastros/companhias', companhias),
+  ]);
 };
 
-const carregarRegrasNPS = async () => {
+const carregarRegras = async () => {
+  try { const r = await api.get('/config/regras'); regras.value = r.data || {}; } catch (e) { regras.value = {}; }
+  try { const r = await api.get('/lembretes/previa'); lembretes.value = r.data || lembretes.value; } catch (e) { /* sem prévia */ }
+};
+
+const carregarAssinatura = async () => {
   try {
-    const res = await api.get('/config/regras');
-    if (res.data) {
-      if (res.data.lembrete_dias) regrasNPS.value.lembrete_dias = parseInt(res.data.lembrete_dias);
-      if (res.data.recorrencia_dias) regrasNPS.value.recorrencia_dias = parseInt(res.data.recorrencia_dias); 
-    }
-  } catch (error) {
-    console.error("Erro ao ler regras de lembrete:", error);
-  }
+    const r = await api.get('/assinatura');
+    bloqueioAssinatura.value = r.data && r.data.pode_enviar === false ? (r.data.mensagem || 'Os envios estão pausados pela assinatura.') : '';
+  } catch (e) { /* sem dados de assinatura: não bloqueia */ }
 };
 
-const atualizarRegras = async () => {
-  savingConfig.value = true;
+const carregarLogs = async () => {
+  try { const r = await api.get('/logs/emails'); logs.value = Array.isArray(r.data) ? r.data : []; } catch (e) { /* histórico indisponível */ }
+  finally { carregandoLogs.value = false; }
+};
+
+// Linhas enviadas há pouco ficam protegidas: o backend envia em segundo plano e demora alguns segundos
+const idsRecemEnviados = ref([]);
+const idsEnviando = ref([]);
+
+const sincronizar = async () => {
   try {
-    const payload = {
-      recorrencia_dias: regrasForm.value.recorrencia_dias,
-      lembrete_dias: regrasForm.value.lembrete_dias
-    };
-    
-    await api.post('/config/regras', payload);
-    
-    toast.add({ severity: 'success', summary: 'Configurações Salvas', detail: 'As regras de envio foram atualizadas.' });
-    
-    // Atualiza o estado visual sem precisar de recarregar a página
-    regrasNPS.value = { ...regrasForm.value };
-    dialogRegras.value = false;
-    
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'Falha ao salvar configurações.' });
-  } finally {
-    savingConfig.value = false;
-  }
+    const r = await api.get('/clientes', { params: { _t: Date.now() }, headers: { 'Cache-Control': 'no-cache' } });
+    const selecionados = new Set(clientesSelecionados.value.map(c => c.cliente_id));
+    clientes.value = r.data.map(novo => {
+      if (!idsRecemEnviados.value.includes(novo.cliente_id)) return novo;
+      const antigo = clientes.value.find(c => c.cliente_id === novo.cliente_id);
+      return antigo ? { ...novo, status_envio: antigo.status_envio } : novo;
+    });
+    if (selecionados.size) clientesSelecionados.value = clientes.value.filter(c => selecionados.has(c.cliente_id));
+  } catch (e) { /* tenta de novo no próximo ciclo */ }
 };
 
-// ==========================================
-// 🔍 2. FILTROS E PESQUISA
-// ==========================================
-const pesquisa = ref('');
-const filtrosTabela = ref({
-  global: { value: null, matchMode: FilterMatchMode.CONTAINS }
-});
-
-const atualizarFiltro = () => {
-  filtrosTabela.value.global.value = pesquisa.value;
-};
-
-const filtroStatus = ref(null);
-const opcoesStatus = [
-  { label: 'Todos', value: null },
-  { label: 'Respondido', value: 'Respondido' },
-  { label: 'Enviado', value: 'Enviado' },
-  { label: 'Pendente', value: 'Pendente' },
-  { label: 'Erro', value: 'Erro' }
-];
-
-const filtroTipoData = ref('proximo_envio');
-const opcoesTipoData = [
-  { label: 'Próximo Envio', value: 'proximo_envio' },
-  { label: 'Último Envio', value: 'ultimo_envio' }
-];
-
-const filtroDataInicio = ref(null);
-const filtroDataFim = ref(null);
-
-const limparFiltros = () => {
-  pesquisa.value = '';
-  filtrosTabela.value.global.value = null;
-  filtroStatus.value = null;
-  filtroGestor.value = null;
-  filtroCompanhia.value = null; 
-  filtroDataInicio.value = null;
-  filtroDataFim.value = null;
-  filtroTipoData.value = 'proximo_envio';
-};
-
-const clientesFiltrados = computed(() => {
-  return clientes.value.filter(c => {
-    let matchesAtivo = true;
-    if (!mostrarInativos.value) {
-      matchesAtivo = c.ativo !== 0 && c.ativo !== false;
-    }
-
-    let matchesStatus = true;
-    if (filtroStatus.value && filtroStatus.value !== 'Todos') {
-      const st = (c.status_envio || 'Pendente').trim().toLowerCase();
-      matchesStatus = st === filtroStatus.value.toLowerCase();
-    }
-
-    let matchesGestor = true;
-    if (filtroGestor.value && filtroGestor.value !== 'Todos') {
-      matchesGestor = c.gestor === filtroGestor.value;
-    }
-
-    let matchesCompanhia = true;
-    if (filtroCompanhia.value && filtroCompanhia.value !== 'Todas') {
-      const empresaObj = empresas.value.find(e => e.nome === c.empresa);
-      const companhiaDoCliente = empresaObj ? empresaObj.companhia : null;
-      matchesCompanhia = companhiaDoCliente === filtroCompanhia.value;
-    }
-
-    let matchesDate = true;
-    if (filtroDataInicio.value || filtroDataFim.value) {
-      const dataAlvoStr = c[filtroTipoData.value];
-      
-      if (!dataAlvoStr || dataAlvoStr === 'None' || dataAlvoStr === 'null') {
-        matchesDate = false;
-      } else {
-        const dataCliente = new Date(dataAlvoStr.slice(0, 10) + 'T00:00:00');
-        
-        if (isNaN(dataCliente.getTime())) {
-          matchesDate = false;
-        } else {
-          if (filtroDataInicio.value) {
-            const dtInicio = new Date(filtroDataInicio.value);
-            dtInicio.setHours(0, 0, 0, 0);
-            if (dataCliente < dtInicio) matchesDate = false;
-          }
-          
-          if (filtroDataFim.value) {
-            const dtFim = new Date(filtroDataFim.value);
-            dtFim.setHours(23, 59, 59, 999);
-            if (dataCliente > dtFim) matchesDate = false;
-          }
-        }
-      }
-    }
-
-    let matchesAmanha = true;
-    if (mostrarApenasAmanha.value) {
-      if ((c.status_envio || '').toLowerCase() === 'enviado' && c.ultimo_envio) {
-        const statusLemb = calcularStatusLembrete(c.ultimo_envio);
-        matchesAmanha = statusLemb && statusLemb.texto.includes('Amanhã');
-      } else {
-        matchesAmanha = false; 
-      }
-    }
-    
-    return matchesAtivo && matchesStatus && matchesDate && matchesGestor && matchesCompanhia && matchesAmanha;
-  });
-});
-
-const totalClientes = computed(() => clientesFiltrados.value.length);
-const totalDecisores = computed(() => clientesFiltrados.value.filter(c => (c.perfil_decisor || '').trim().toLowerCase() === 'decisor').length);
-const totalInfluenciadores = computed(() => clientesFiltrados.value.filter(c => (c.perfil_decisor || '').trim().toLowerCase() === 'influenciador').length);
-
-// ==========================================
-// 📝 3. CRUD E MODAL DE CLIENTES
-// ==========================================
-const clienteDialog = ref(false);
-const submetendo = ref(false);
-const editando = ref(false);
-
-const cliente = ref({ 
-  cliente_id: null,
-  nome: '', 
-  email: '', 
-  telefone: '',
-  empresa: null, 
-  perfil_decisor: null,
-  cargo: null,
-  gestor: null,
-  segmento: null
-});
-
-// ==========================================
-// 📡 4. CARREGAMENTO E SMART POLLING ULTRA-FORÇADO
-// ==========================================
-let pollingInterval = null;
-
-const carregarClientes = async () => {
+const carregarTudo = async () => {
   loading.value = true;
-  await sincronizarStatusRealTime();
-  
-  try { const resEmp = await api.get('/cadastros/empresas'); if(resEmp.data) empresas.value = resEmp.data; } catch (e) {}
-  try { const resPerf = await api.get('/cadastros/perfis'); if(resPerf.data) perfis.value = resPerf.data; } catch (e) {}
-  try { const resCargos = await api.get('/cadastros/cargos'); if(resCargos.data) cargos.value = resCargos.data; } catch (e) {}
-  try { const resSeg = await api.get('/cadastros/segmentos'); if(resSeg.data) segmentos.value = resSeg.data; } catch (e) {}
-  
-  try { 
-    const resGest = await api.get('/cadastros/gestores'); 
-    if(resGest.data) {
-      gestores.value = [{ label: 'Todos', value: null }, ...resGest.data.map(g => ({ label: g.nome, value: g.nome }))];
-    }
-  } catch (e) {}
-
-  try { 
-    const resComp = await api.get('/cadastros/companhias'); 
-    if(resComp.data) {
-      companhias.value = [{ label: 'Todas', value: null }, ...resComp.data.map(c => ({ label: c.nome, value: c.nome }))];
-    }
-  } catch (e) {}
-  
+  await Promise.all([sincronizar(), carregarCadastros(), carregarRegras(), carregarAssinatura(), carregarLogs()]);
   loading.value = false;
 };
 
-const abrirNovo = () => { 
-    cliente.value = { cliente_id: null, nome: '', email: '', telefone: '', empresa: null, perfil_decisor: null, cargo: null, gestor: null, segmento: null }; 
-    editando.value = false; 
-    clienteDialog.value = true; 
-};
-const editarCliente = (dados) => { 
-    cliente.value = { ...dados }; 
-    editando.value = true; 
-    clienteDialog.value = true; 
-};
-
-const salvarCliente = async () => {
-  if (!cliente.value.nome || !cliente.value.email || !cliente.value.cargo) {
-    toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Nome, E-mail e Cargo são obrigatórios.', life: 3000 });
-    return;
-  }
-  submetendo.value = true;
-  try {
-    const id = cliente.value.cliente_id || cliente.value.id;
-    if (editando.value) {
-      await api.put(`/clientes/${id}`, cliente.value);
-      toast.add({ severity: 'success', summary: 'Atualizado', detail: 'Dados gravados.', life: 3000 });
-    } else {
-      await api.post('/clientes', cliente.value);
-      toast.add({ severity: 'success', summary: 'Criado', detail: 'Cliente adicionado.', life: 3000 });
+// Atualização automática: rápida logo depois de um envio, lenta no resto do tempo
+let temporizador = null;
+const agendarAtualizacao = () => {
+  clearTimeout(temporizador);
+  const rapido = idsRecemEnviados.value.length > 0;
+  temporizador = setTimeout(async () => {
+    if (!document.hidden) {
+      await sincronizar();
+      if (rapido) await carregarLogs();
     }
-    clienteDialog.value = false;
-    await sincronizarStatusRealTime();
-  } catch (error) { toast.add({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar.', life: 3000 }); } 
-  finally { submetendo.value = false; }
+    agendarAtualizacao();
+  }, rapido ? 4000 : 30000);
 };
 
-// ==========================================
-// 🚀 5. DISPAROS E FORMATAÇÃO (NPS API)
-// ==========================================
+onMounted(() => { carregarTudo(); agendarAtualizacao(); });
+onUnmounted(() => clearTimeout(temporizador));
 
-// 🎯 1. Adicione esta variável logo abaixo do idsEnviando. Ela protege as linhas recém alteradas.
-const idsRecemEnviados = ref([]);
+// ---------- Situação de cada contato ----------
+const ativo = (c) => !(c.ativo === 0 || c.ativo === false);
 
-// 🎯 2. Substitua a função dispararIndividual
-const dispararIndividual = async (row_data) => {
-  if (row_data.ativo === 0 || row_data.ativo === false) {
-    return toast.add({ severity: 'warn', summary: 'Envio Bloqueado', detail: 'Não é possível enviar pesquisas para pessoas inativas.', life: 4000 });
-  }
-
-  const id = row_data.cliente_id;
-  if (!id) return;
-
-  idsEnviando.value.push(id); 
-  idsRecemEnviados.value.push(id); // 🛡️ Protege esta linha do polling
-
-  // 🔥 ATUALIZAÇÃO OTIMISTA: Muda a interface antes mesmo da API responder!
-  row_data.status_envio = 'Processando...';
-
-  try {
-    await api.post(`/clientes/${id}/forcar-envio`);
-    toast.add({ severity: 'success', summary: 'Tudo pronto! 🚀', detail: `O convite para ${row_data.nome} já foi enviado para a fila.`, life: 5000 });
-    
-    // Confirma visualmente o envio
-    row_data.status_envio = 'Enviado';
-    row_data.ultimo_envio = new Date().toISOString();
-
-    // Remove a proteção após 15 segundos (Tempo suficiente para o Python acabar)
-    setTimeout(() => {
-       idsRecemEnviados.value = idsRecemEnviados.value.filter(i => i !== id);
-    }, 15000);
-
-  } catch (error) { 
-    row_data.status_envio = 'Erro'; // Reverte em caso de erro
-    toast.add({ severity: 'error', summary: 'Ops! Algo aconteceu', detail: 'Não conseguimos acionar o disparo nativo agora.', life: 5000 }); 
-  } finally { 
-    idsEnviando.value = idsEnviando.value.filter(i => i !== id); 
-  }
+const grupoDoStatus = (c) => {
+  const s = (c.status_envio || '').trim();
+  if (s === 'Processando...') return 'processando';
+  if (s === 'Pendente') return 'fila';
+  if (s === 'Enviado') return 'aguardando';
+  if (s === 'Respondido') return 'respondido';
+  if (s === 'Erro') return 'erro';
+  return 'outro';
 };
 
-// 🎯 3. Substitua a função dispararLote
-const dispararLote = async () => {
-  const selecionadosAtivos = clientesSelecionados.value.filter(c => c.ativo !== 0 && c.ativo !== false);
+const SITUACAO = {
+  processando: { rotulo: 'Enviando...', classe: 'env-tag-neutro' },
+  fila: { rotulo: 'Na fila', classe: 'env-tag-neutro' },
+  aguardando: { rotulo: 'Aguardando resposta', classe: 'env-tag-espera' },
+  respondido: { rotulo: 'Respondeu', classe: 'env-tag-ok' },
+  erro: { rotulo: 'Não saiu', classe: 'env-tag-erro' },
+};
+const situacao = (c) => {
+  if (!ativo(c)) return { rotulo: 'Inativo', classe: 'env-tag-neutro' };
+  const g = grupoDoStatus(c);
+  if (g === 'outro') return { rotulo: c.status_envio === 'Criado' ? 'Link criado' : 'Não iniciado', classe: 'env-tag-neutro' };
+  return SITUACAO[g];
+};
 
-  if (selecionadosAtivos.length === 0) {
-    return toast.add({ severity: 'warn', summary: 'Ninguém elegível', detail: 'Selecione pelo menos uma pessoa ATIVA para disparar o lote.', life: 4000 });
-  }
-  
-  const total = selecionadosAtivos.length;
-  enviandoEmail.value = true;
-  const idsParaEnvio = selecionadosAtivos.map(c => c.cliente_id);
-
-  idsRecemEnviados.value.push(...idsParaEnvio); // 🛡️ Protege o lote do polling
-
-  // 🔥 ATUALIZAÇÃO OTIMISTA NO LOTE
-  clientes.value.forEach(c => {
-    if (idsParaEnvio.includes(c.cliente_id)) c.status_envio = 'Processando...';
+// Último erro registrado para cada e-mail (o log vem do mais novo para o mais antigo)
+const errosPorEmail = computed(() => {
+  const m = new Map();
+  logs.value.forEach(l => {
+    const email = String(l.destinatario || '').trim().toLowerCase();
+    if (l.status === 'Erro' && email && !m.has(email)) m.set(email, causaSimples(extrairErroDoLog(l.mensagem)));
   });
-  
-  try {
-    await api.post('/clientes/forcar-envio-lote', { cliente_ids: idsParaEnvio });
-    toast.add({ severity: 'info', summary: 'Trabalho em curso! 🛠️', detail: `Estamos processando o envio para ${total} contatos ativos. Pode continuar navegando.`, life: 8000 });
-    
-    // Confirma visualmente
-    clientes.value.forEach(c => {
-      if (idsParaEnvio.includes(c.cliente_id)) {
-         c.status_envio = 'Enviado';
-         c.ultimo_envio = new Date().toISOString();
-      }
-    });
+  return m;
+});
+const causaDoErro = (c) => errosPorEmail.value.get(String(c.email || '').trim().toLowerCase()) || causaSimples('');
 
-    clientesSelecionados.value = [];
-    
-    // Remove a proteção após 15 segundos
-    setTimeout(() => {
-        idsRecemEnviados.value = idsRecemEnviados.value.filter(id => !idsParaEnvio.includes(id));
-    }, 15000);
+const adicionarDias = (data, dias) => { const d = new Date(data); d.setDate(d.getDate() + dias); return d; };
+const inicioDoDia = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro no Lote', detail: 'Houve um problema ao processar o lote de envios.', life: 5000 });
-  } finally {
-    enviandoEmail.value = false;
-  }
+// Próximo lembrete de quem recebeu e não respondeu
+const proximoLembrete = (c) => {
+  if (grupoDoStatus(c) !== 'aguardando' || !lembretes.value.ativo || !c.data_envio_inicial) return null;
+  const n = Number(c.lembretes_enviados || 0);
+  const dias = lembretes.value.dias || [];
+  if (n >= dias.length) return null;
+  const data = adicionarDias(c.data_envio_inicial, dias[n]);
+  if (isNaN(data.getTime())) return null;
+  const diff = Math.round((inicioDoDia(data) - inicioDoDia(new Date())) / 86400000);
+  return { numero: n + 1, data, diff };
 };
 
-// 🎯 4. Substitua a função sincronizarStatusRealTime
-const sincronizarStatusRealTime = async () => {
-  try {
-    const [response, resAcoes] = await Promise.all([
-      api.get('/clientes', { params: { _t: new Date().getTime() }, headers: { 'Cache-Control': 'no-cache' } }),
-      api.get('/acoes')
-    ]);
-    
-    const idsSelecionados = clientesSelecionados.value.map(c => c.cliente_id);
+const textoLembrete = (c) => {
+  const n = Number(c.lembretes_enviados || 0);
+  const partes = [];
+  if (n > 0) partes.push(`${plural(n, 'lembrete enviado', 'lembretes enviados')}${c.ultimo_envio ? ' (último em ' + formatarData(c.ultimo_envio) + ')' : ''}`);
+  const p = proximoLembrete(c);
+  if (p) partes.push(p.diff <= 0 ? `${p.numero}º lembrete sai hoje` : p.diff === 1 ? `${p.numero}º lembrete amanhã` : `${p.numero}º lembrete em ${formatarData(p.data)}`);
+  else if (n === 0) partes.push('Sem lembretes programados');
+  return partes.join(' · ');
+};
 
-    // 🛡️ MERGE INTELIGENTE: Se o cliente foi disparado há menos de 15s, o Vue recusa a versão antiga do Banco!
-    const novosClientes = response.data.map(novo => {
-       if (idsRecemEnviados.value.includes(novo.cliente_id)) {
-          const antigo = clientes.value.find(c => c.cliente_id === novo.cliente_id);
-          return antigo ? { ...novo, status_envio: antigo.status_envio, ultimo_envio: antigo.ultimo_envio } : novo;
-       }
-       return novo;
-    });
+// ---------- Resumo e filtros ----------
+const ativos = computed(() => clientes.value.filter(ativo));
+const resumo = computed(() => {
+  const r = { fila: 0, aguardando: 0, respondido: 0, erro: 0 };
+  ativos.value.forEach(c => { const g = grupoDoStatus(c); if (g in r) r[g]++; });
+  return r;
+});
+const CARTOES = [
+  { chave: 'fila', rotulo: 'Na fila', dica: 'Vão receber no próximo envio', icone: 'pi-inbox' },
+  { chave: 'aguardando', rotulo: 'Aguardando resposta', dica: 'Receberam e ainda não responderam', icone: 'pi-clock' },
+  { chave: 'respondido', rotulo: 'Responderam', dica: 'Neste ciclo', icone: 'pi-check-circle' },
+  { chave: 'erro', rotulo: 'Com erro', dica: 'O e-mail não saiu', icone: 'pi-exclamation-triangle' },
+];
 
-    clientes.value = [...novosClientes];
+const pesquisa = ref('');
+const filtroStatus = ref(null);
+const filtroGestor = ref('');
+const filtroCompanhia = ref('');
+const filtroTipoData = ref('proximo_envio');
+const filtroDataInicio = ref('');
+const filtroDataFim = ref('');
+const mostrarInativos = ref(false);
+const soLembreteProximo = ref(false);
+const filtrosAbertos = ref(false);
 
-    if (idsSelecionados.length > 0) {
-      clientesSelecionados.value = clientes.value.filter(c => idsSelecionados.includes(c.cliente_id));
+const nomesGestores = computed(() => [...new Set([...gestores.value.map(g => g.nome), ...clientes.value.map(c => c.gestor)].filter(Boolean))].sort());
+const companhiaPorEmpresa = computed(() => new Map(empresas.value.map(e => [e.nome, e.companhia])));
+
+const filtrosExtras = computed(() => [filtroGestor.value, filtroCompanhia.value, filtroDataInicio.value, filtroDataFim.value, mostrarInativos.value, soLembreteProximo.value].filter(Boolean).length);
+const algumFiltro = computed(() => !!pesquisa.value.trim() || !!filtroStatus.value || filtrosExtras.value > 0);
+
+const limparFiltros = () => {
+  pesquisa.value = ''; filtroStatus.value = null; filtroGestor.value = ''; filtroCompanhia.value = '';
+  filtroTipoData.value = 'proximo_envio'; filtroDataInicio.value = ''; filtroDataFim.value = '';
+  mostrarInativos.value = false; soLembreteProximo.value = false;
+};
+
+const clientesFiltrados = computed(() => {
+  const termo = pesquisa.value.trim().toLowerCase();
+  return clientes.value.filter(c => {
+    if (!mostrarInativos.value && !ativo(c)) return false;
+    if (filtroStatus.value && (grupoDoStatus(c) !== filtroStatus.value || !ativo(c))) return false;
+    if (termo && ![c.nome, c.email, c.empresa].some(v => String(v || '').toLowerCase().includes(termo))) return false;
+    if (filtroGestor.value && c.gestor !== filtroGestor.value) return false;
+    if (filtroCompanhia.value && companhiaPorEmpresa.value.get(c.empresa) !== filtroCompanhia.value) return false;
+    if (filtroDataInicio.value || filtroDataFim.value) {
+      const valor = c[filtroTipoData.value];
+      if (!valor) return false;
+      const dia = String(valor).slice(0, 10);
+      if (filtroDataInicio.value && dia < filtroDataInicio.value) return false;
+      if (filtroDataFim.value && dia > filtroDataFim.value) return false;
     }
-    
-    if (resAcoes.data) {
-      acoesAtivas.value = resAcoes.data.filter(a => a.status !== 'Concluído');
+    if (soLembreteProximo.value) {
+      const p = proximoLembrete(c);
+      if (!p || p.diff > 1) return false;
     }
-  } catch (error) {
-    console.error("Falha ao sincronizar real-time:", error);
-  }
-};
+    return true;
+  });
+});
 
-const formatarData = (dataStr) => {
-  if (!dataStr || dataStr === 'None' || dataStr === 'null') return 'Pendente';
-  try {
-    const dataLimpa = dataStr.slice(0, 10);
-    const partes = dataLimpa.split('-'); 
-    if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
-    return dataLimpa;
-  } catch (e) { return 'Pendente'; }
-};
+const contagemPerfis = computed(() => {
+  const perfil = (c) => (c.perfil_decisor || '').trim().toLowerCase();
+  return {
+    decisores: clientesFiltrados.value.filter(c => perfil(c) === 'decisor').length,
+    influenciadores: clientesFiltrados.value.filter(c => perfil(c) === 'influenciador').length,
+  };
+});
 
-const gerarIniciais = (nome) => {
-  if (!nome) return 'U';
-  const partes = nome.trim().split(' ');
-  return partes.length > 1 ? (partes[0][0] + partes[partes.length - 1][0]).toUpperCase() : partes[0][0].toUpperCase();
-};
+const alternarStatus = (chave) => { filtroStatus.value = filtroStatus.value === chave ? null : chave; aba.value = 'contatos'; };
 
-const acoesAtivas = ref([]);
+// ---------- Abas ----------
+const aba = ref('contatos');
+const totalHistorico = computed(() => {
+  const emails = new Set(clientes.value.map(c => String(c.email || '').trim().toLowerCase()));
+  return logs.value.filter(l => emails.has(String(l.destinatario || '').trim().toLowerCase())).length;
+});
 
-const calcularStatusLembrete = (data_disparo) => {
-  if (!data_disparo) return null;
+// ---------- Envio manual ----------
+const clientesSelecionados = ref([]);
+const dialogEnvio = ref(false);
+const origemEnvio = ref('selecao');
+const pessoasEnvio = ref([]);
+const inativosEnvio = ref(0);
+const enviando = ref(false);
 
-  const dataEnvio = new Date(data_disparo);
-  if (isNaN(dataEnvio.getTime())) return null;
+const naFila = computed(() => ativos.value.filter(c => grupoDoStatus(c) === 'fila'));
+const rotuloBotaoEnvio = computed(() => clientesSelecionados.value.length > 0
+  ? `Enviar para ${clientesSelecionados.value.length} ${clientesSelecionados.value.length === 1 ? 'selecionado' : 'selecionados'}`
+  : 'Enviar pesquisa');
 
-  const hoje = new Date();
-  
-  dataEnvio.setHours(0, 0, 0, 0);
-  hoje.setHours(0, 0, 0, 0);
-  
-  const diasPassados = Math.floor((hoje - dataEnvio) / (1000 * 60 * 60 * 24));
-  const diasRestantes = regrasNPS.value.lembrete_dias - diasPassados;
-
-  if (diasRestantes > 1) {
-    return { texto: `Lembrete em ${diasRestantes} dias`, cor: 'text-slate-400', icone: 'pi-clock' };
-  } else if (diasRestantes === 1) {
-    return { texto: 'Lembrete Amanhã', cor: 'text-indigo-400', icone: 'pi-history' };
-  } else if (diasRestantes === 0) {
-    return { texto: 'Lembrete Hoje', cor: 'text-orange-500', icone: 'pi-send' };
+const abrirEnvio = (cliente = null) => {
+  if (cliente) {
+    origemEnvio.value = 'individual';
+    pessoasEnvio.value = [cliente];
+    inativosEnvio.value = 0;
+  } else if (clientesSelecionados.value.length > 0) {
+    origemEnvio.value = 'selecao';
+    pessoasEnvio.value = clientesSelecionados.value.filter(ativo);
+    inativosEnvio.value = clientesSelecionados.value.length - pessoasEnvio.value.length;
   } else {
-    return { texto: 'Na fila de disparo', cor: 'text-rose-500', icone: 'pi-exclamation-circle' }; 
+    origemEnvio.value = 'fila';
+    pessoasEnvio.value = naFila.value;
+    inativosEnvio.value = 0;
+  }
+  dialogEnvio.value = true;
+};
+
+const protegerEnvio = (ids) => {
+  idsRecemEnviados.value.push(...ids);
+  clientes.value.forEach(c => { if (ids.includes(c.cliente_id)) c.status_envio = 'Processando...'; });
+  setTimeout(() => {
+    idsRecemEnviados.value = idsRecemEnviados.value.filter(id => !ids.includes(id));
+    sincronizar();
+    carregarLogs();
+  }, 15000);
+  agendarAtualizacao();
+};
+
+const confirmarEnvio = async () => {
+  const ids = pessoasEnvio.value.map(c => c.cliente_id).filter(Boolean);
+  if (!ids.length) return;
+  enviando.value = true;
+  idsEnviando.value.push(...ids);
+  try {
+    if (origemEnvio.value === 'individual') await api.post(`/clientes/${ids[0]}/forcar-envio`);
+    else await api.post('/clientes/forcar-envio-lote', { cliente_ids: ids });
+    protegerEnvio(ids);
+    const quem = ids.length === 1 ? (pessoasEnvio.value[0].nome || 'o contato') : plural(ids.length, 'pessoa', 'pessoas');
+    toast.add({ severity: 'success', summary: 'Pesquisa a caminho', detail: `O e-mail para ${quem} está saindo agora. A situação atualiza sozinha nesta tela.`, life: 5000 });
+    if (origemEnvio.value !== 'individual') clientesSelecionados.value = [];
+    dialogEnvio.value = false;
+  } catch (error) {
+    const detalhe = detalheDoErro(error);
+    if (ehErroAssinatura(detalhe, error?.response?.status)) {
+      bloqueioAssinatura.value = detalhe || 'Os envios estão pausados pela assinatura.';
+    } else {
+      toast.add({ severity: 'error', summary: 'O envio não começou', detail: detalhe || 'Não conseguimos iniciar o envio agora. Tente de novo em instantes.', life: 6000 });
+    }
+  } finally {
+    enviando.value = false;
+    idsEnviando.value = idsEnviando.value.filter(id => !ids.includes(id));
   }
 };
 
-onMounted(() => {
-  carregarClientes();
-  carregarRegrasNPS();
-  pollingInterval = setInterval(sincronizarStatusRealTime, 3000); 
-});
-
-onUnmounted(() => {
-  if (pollingInterval) clearInterval(pollingInterval);
-});
-
+// ---------- Diálogos ----------
+const ajudaVisivel = ref(false);
+const dialogRegras = ref(false);
+const dialogContato = ref(false);
+const aoSalvarRegras = async (novas) => { regras.value = novas; try { const r = await api.get('/lembretes/previa'); lembretes.value = r.data; } catch (e) { /* mantém */ } };
 </script>
 
 <template>
-  <div class="max-w-[1400px] mx-auto animate-fadein p-4">
-    
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-      <div>
-        <h1 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight italic">
-          Envios <span class="text-orange-500">.</span>
-        </h1>
-        <div class="flex items-center gap-3 mt-2">
-          <p class="text-[13px] text-slate-500 dark:text-slate-400 font-medium">Olhe a base de contatos e dispare pesquisas.</p>
-          <Tag :value="'Ciclo: ' + regrasNPS.recorrencia_dias + ' dias'" icon="pi pi-sync" class="!bg-orange-50 dark:!bg-orange-500/10 !text-orange-600 dark:!text-orange-400 !text-[9px] !font-black uppercase tracking-widest border border-orange-200 dark:border-orange-500/20 !px-2" v-tooltip.top="'Tempo de carência configurado entre disparos para o mesmo cliente'" />
+  <div class="max-w-[1400px] mx-auto flex flex-col gap-6 pb-24">
+    <!-- Cabeçalho -->
+    <header class="flex flex-wrap items-end justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">Envios<span class="text-orange-500">.</span></h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Quem vai receber a pesquisa, o que já saiu, quem respondeu e o que deu erro.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button @click="ajudaVisivel = true" class="env-btn-quadrado" v-tooltip.bottom="'Como funciona'" aria-label="Como funciona esta tela"><i class="pi pi-question-circle text-sm"></i></button>
+        <button @click="carregarTudo" class="env-btn-quadrado" v-tooltip.bottom="'Atualizar'" aria-label="Atualizar"><i :class="['pi pi-refresh text-sm', loading ? 'pi-spin' : '']"></i></button>
+        <button v-if="podeCriar" @click="dialogContato = true" class="env-btn-secundario"><i class="pi pi-plus text-xs"></i>Novo contato</button>
+        <button v-if="podeDisparar" @click="abrirEnvio()" class="env-btn-primario"><i class="pi pi-send text-xs"></i>{{ rotuloBotaoEnvio }}</button>
+      </div>
+    </header>
+
+    <AvisoAssinatura v-if="bloqueioAssinatura" :mensagem="bloqueioAssinatura" />
+
+    <!-- Como os envios estão funcionando -->
+    <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center gap-4">
+      <div class="flex items-start gap-3 flex-1 min-w-0">
+        <span :class="['mt-1.5 w-2.5 h-2.5 rounded-full shrink-0', automaticoLigado ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600']" aria-hidden="true"></span>
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-900 dark:text-white">Envio automático {{ automaticoLigado ? 'ligado' : 'desligado' }}</p>
+          <p class="text-sm text-slate-600 dark:text-slate-300 mt-0.5">
+            <template v-if="automaticoLigado">A cada 6 horas o sistema confere a fila e envia para quem está na vez<span v-if="resumo.fila"> ({{ plural(resumo.fila, 'pessoa', 'pessoas') }} agora)</span>.</template>
+            <template v-else-if="!enviosAtivos">O envio de e-mails está desligado em Configurações. Ninguém recebe sozinho; você ainda pode enviar manualmente.</template>
+            <template v-else>Ninguém recebe sozinho. Envie agora pelo botão <b>Enviar pesquisa</b> ou ligue o envio automático.</template>
+          </p>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            A mesma pessoa recebe no máximo a cada {{ recorrencia }} dias ·
+            <template v-if="lembretes.ativo && lembretes.dias.length">{{ textoDiasLembrete }}</template>
+            <template v-else>Lembretes desligados</template>
+          </p>
         </div>
       </div>
-      
-      <div class="flex flex-wrap gap-3 items-center">
-        <Button 
-          icon="pi pi-question-circle" 
-          @click="ajudaVisivel = true" 
-          class="!bg-white dark:!bg-slate-800 !text-slate-500 !border-slate-200 dark:!border-slate-700 !rounded-xl w-10 h-10 shadow-sm hover:!text-orange-500 hover:!border-orange-500 transition-all flex items-center justify-center shrink-0" 
-          v-tooltip.top="'Como funciona esta tela?'" 
-        />
-
-        <Button 
-          v-if="temPermissao('audiencia:disparar')" 
-          icon="pi pi-cog" 
-          @click="abrirConfiguracoes" 
-          class="!bg-white dark:!bg-slate-800 !text-slate-500 !border-slate-200 dark:!border-slate-700 !rounded-xl w-10 h-10 shadow-sm hover:!text-indigo-500 hover:!border-indigo-500 transition-all flex items-center justify-center shrink-0" 
-          v-tooltip.top="'Configurar Régua de Disparo'" 
-        />
-        <Button v-if="temPermissao('audiencia:disparar')" :label="clientesSelecionados.length > 0 ? `Disparar para ${clientesSelecionados.length}` : 'Disparo em Lote'" icon="pi pi-send" @click="dispararLote" :loading="enviandoEmail" class="bg-slate-900 dark:bg-white dark:text-slate-900 border-none rounded-xl px-5 py-2.5 text-xs font-black text-white shadow-xl hover:-translate-y-0.5 transition-transform shrink-0" />
-        <Button v-if="temPermissao('clientes:criar')" label="Novo Contato" icon="pi pi-plus" @click="abrirNovo" class="bg-orange-500 border-none rounded-xl px-5 py-2.5 text-xs font-black text-white shadow-lg shadow-orange-500/30 hover:-translate-y-0.5 transition-transform shrink-0" />
+      <div class="flex flex-wrap gap-2 lg:justify-end">
+        <router-link v-if="!enviosAtivos && ehAdmin" to="/configuracoes" class="env-btn-secundario"><i class="pi pi-cog text-xs"></i>Abrir Configurações</router-link>
+        <button v-if="ehAdmin" @click="dialogRegras = true" class="env-btn-secundario"><i class="pi pi-sliders-h text-xs"></i>Regras de envio</button>
       </div>
+    </section>
+
+    <!-- Resumo: cada cartão filtra a lista -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <button v-for="c in CARTOES" :key="c.chave" @click="alternarStatus(c.chave)" :aria-pressed="filtroStatus === c.chave"
+        class="text-left flex flex-col justify-start bg-white dark:bg-slate-900 rounded-2xl border p-4 transition-colors min-w-0"
+        :class="filtroStatus === c.chave ? 'border-orange-400 ring-2 ring-orange-500/20 dark:border-orange-500/60' : 'border-slate-200 dark:border-slate-800 hover:border-orange-300 dark:hover:border-orange-500/40'">
+        <span class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
+          <i :class="['pi text-sm', c.icone, c.chave === 'erro' && resumo.erro ? 'text-rose-500' : c.chave === 'respondido' ? 'text-emerald-500' : c.chave === 'aguardando' ? 'text-amber-500' : 'text-slate-400']"></i>{{ c.rotulo }}
+        </span>
+        <span class="block text-2xl font-black text-slate-900 dark:text-white mt-1 tabular-nums">{{ resumo[c.chave] }}</span>
+        <span class="block text-sm text-slate-500 dark:text-slate-400">{{ c.dica }}</span>
+      </button>
     </div>
 
-    <Sidebar v-model:visible="ajudaVisivel" position="right" class="w-full md:w-[400px] !bg-white dark:!bg-slate-950 dark:border-l dark:border-slate-800" :showCloseIcon="true">
-      <template #header>
-        <div class="flex items-center gap-3">
-          <div class="bg-orange-100 dark:bg-orange-500/20 p-2 rounded-xl border border-orange-200 dark:border-orange-500/30">
-            <i class="pi pi-book text-orange-600 dark:text-orange-500 text-xl"></i>
+    <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-3 sm:p-5 min-w-0">
+      <!-- Abas -->
+      <div class="flex gap-1 border-b border-slate-200 dark:border-slate-800 mb-4" role="tablist">
+        <button role="tab" :aria-selected="aba === 'contatos'" @click="aba = 'contatos'" :class="['env-aba', aba === 'contatos' && 'env-aba-ativa']">
+          <i class="pi pi-users hidden sm:inline-block"></i>Contatos<span class="env-contador">{{ clientesFiltrados.length }}</span>
+        </button>
+        <button role="tab" :aria-selected="aba === 'historico'" @click="aba = 'historico'" :class="['env-aba', aba === 'historico' && 'env-aba-ativa']">
+          <i class="pi pi-history hidden sm:inline-block"></i>Histórico<span v-if="totalHistorico" class="env-contador">{{ totalHistorico }}</span>
+        </button>
+      </div>
+
+      <div v-show="aba === 'contatos'" class="flex flex-col gap-4">
+        <!-- Busca e filtros -->
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative flex-1 min-w-[200px] max-w-md">
+            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none"></i>
+            <input v-model="pesquisa" type="search" aria-label="Buscar" placeholder="Buscar por nome, e-mail ou empresa" class="env-input w-full pl-9!" />
           </div>
-          <div class="flex flex-col">
-            <h2 class="text-lg font-black text-slate-900 dark:text-white leading-none tracking-tight">Guia da Tela</h2>
-            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Envios de Pesquisa</span>
-          </div>
+          <button @click="filtrosAbertos = !filtrosAbertos" :aria-expanded="filtrosAbertos"
+            class="env-btn-secundario" :class="filtrosExtras ? 'border-orange-300! text-orange-700! dark:text-orange-300!' : ''">
+            <i class="pi pi-filter text-xs"></i>Filtros<span v-if="filtrosExtras" class="env-contador">{{ filtrosExtras }}</span>
+          </button>
+          <button v-if="algumFiltro" @click="limparFiltros" class="env-link px-2">Limpar filtros</button>
         </div>
-      </template>
-      
-      <div class="mt-6 flex flex-col gap-6">
-        <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-          Esta é a central de comando da sua base de contatos. Aqui você acompanha quem deve receber pesquisas, monitora os envios e gerencia o relacionamento.
+
+        <div v-if="filtrosAbertos" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 sm:p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+          <label class="env-campo">
+            <span>Grupo</span>
+            <select v-model="filtroCompanhia" class="env-input"><option value="">Todos</option><option v-for="c in companhias" :key="c.id" :value="c.nome">{{ c.nome }}</option></select>
+          </label>
+          <label class="env-campo">
+            <span>Responsável</span>
+            <select v-model="filtroGestor" class="env-input"><option value="">Todos</option><option v-for="g in nomesGestores" :key="g" :value="g">{{ g }}</option></select>
+          </label>
+          <label class="env-campo">
+            <span>Data do</span>
+            <select v-model="filtroTipoData" class="env-input"><option value="proximo_envio">Próximo envio</option><option value="ultimo_envio">Último envio</option></select>
+          </label>
+          <div class="env-campo">
+            <span>Entre</span>
+            <div class="flex items-center gap-2">
+              <input v-model="filtroDataInicio" type="date" aria-label="Data inicial" class="env-input flex-1 min-w-0" />
+              <input v-model="filtroDataFim" type="date" aria-label="Data final" class="env-input flex-1 min-w-0" />
+            </div>
+          </div>
+          <label class="flex items-center gap-2 cursor-pointer sm:col-span-1 lg:col-span-2">
+            <InputSwitch v-model="soLembreteProximo" class="env-switch scale-75 shrink-0" />
+            <span class="text-sm text-slate-600 dark:text-slate-300">Só quem recebe lembrete hoje ou amanhã</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer lg:col-span-2">
+            <InputSwitch v-model="mostrarInativos" class="env-switch scale-75 shrink-0" />
+            <span class="text-sm text-slate-600 dark:text-slate-300">Mostrar contatos inativos (não recebem pesquisas)</span>
+          </label>
+        </div>
+
+        <p v-if="clientesFiltrados.length" class="text-sm text-slate-500 dark:text-slate-400">
+          {{ plural(clientesFiltrados.length, 'contato', 'contatos') }} · {{ plural(contagemPerfis.decisores, 'decisor', 'decisores') }} · {{ plural(contagemPerfis.influenciadores, 'influenciador', 'influenciadores') }}
+          <template v-if="podeDisparar"> · Marque contatos para enviar só para eles.</template>
         </p>
 
-        <div class="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-          <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-2">
-            <i class="pi pi-send text-orange-500"></i> Como funcionam os Disparos?
-          </h3>
-          <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-2">
-            O envio pode acontecer de duas formas:
-          </p>
-          <ul class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed list-disc pl-4 flex flex-col gap-1">
-            <li><strong>Manual/Lote:</strong> Selecione os clientes usando as caixas à esquerda e clique em "Disparo em Lote" no topo da tela.</li>
-            <li><strong>Envio Automático:</strong> Se ativado nas configurações, o robô lerá a coluna <em>"Próximo"</em> diariamente e fará o envio sozinho.</li>
-          </ul>
-        </div>
-
-        <div class="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-          <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-2">
-            <i class="pi pi-tag text-indigo-500"></i> Entendendo os Status
-          </h3>
-          <ul class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed flex flex-col gap-3">
-            <li class="flex flex-col gap-1">
-              <span class="font-bold text-slate-700 dark:text-slate-300">⏳ Na Fila (Pendente):</span> 
-              <span>Pronto para receber a pesquisa. Aguardando disparo manual ou ação do robô.</span>
-            </li>
-            <li class="flex flex-col gap-1">
-              <span class="font-bold text-slate-700 dark:text-slate-300">📨 Enviado:</span> 
-              <span>A pesquisa chegou ao e-mail do cliente, mas ele ainda não clicou para responder. O sistema pode enviar lembretes automáticos neste status.</span>
-            </li>
-            <li class="flex flex-col gap-1">
-              <span class="font-bold text-slate-700 dark:text-slate-300">✅ Respondido:</span> 
-              <span>A avaliação foi preenchida. O ciclo foi fechado e um novo prazo de carência (ex: 90 dias) começou a contar.</span>
-            </li>
-          </ul>
-        </div>
-
-        <div class="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-          <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-2">
-            <i class="pi pi-sync text-emerald-500"></i> Ciclo de Recorrência (Carência)
-          </h3>
-          <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Para não incomodar o cliente, o sistema bloqueia novos disparos até que o prazo de carência (visível no topo da tela) se esgote. Você pode alterar essa regra clicando no botão da engrenagem.
-          </p>
-        </div>
-      </div>
-    </Sidebar>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-      <div class="bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
-        <div><span class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Total Filtrado</span><div class="text-3xl font-black text-slate-800 dark:text-white tracking-tighter mt-1">{{ totalClientes }}</div></div>
-        <div class="w-11 h-11 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 text-xl"><i class="pi pi-users"></i></div>
-      </div>
-      <div class="bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
-        <div><span class="text-[9px] font-black uppercase tracking-[0.2em] text-yellow-500">Decisores</span><div class="text-3xl font-black text-slate-800 dark:text-white tracking-tighter mt-1">{{ totalDecisores }}</div></div>
-        <div class="w-11 h-11 bg-yellow-50 dark:bg-yellow-500/10 rounded-xl flex items-center justify-center text-yellow-500 text-xl"><i class="pi pi-star-fill"></i></div>
-      </div>
-      <div class="bg-white dark:bg-slate-900 p-5 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
-        <div><span class="text-[9px] font-black uppercase tracking-[0.2em] text-blue-500">Influenciadores</span><div class="text-3xl font-black text-slate-800 dark:text-white tracking-tighter mt-1">{{ totalInfluenciadores }}</div></div>
-        <div class="w-11 h-11 bg-blue-50 dark:bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500 text-xl"><i class="pi pi-briefcase"></i></div>
-      </div>
-    </div>
-
-    <div class="bg-white dark:bg-slate-900 p-4 md:p-5 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden mb-6 flex flex-col gap-4 no-print">
-      
-      <div class="absolute left-0 top-0 w-1.5 h-full bg-sky-500"></div>
-      
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pl-2 md:pl-3">
-        
-        <div class="md:col-span-4 flex flex-col gap-1 pr-2">
-          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-search text-[8px]"></i> Pesquisa</span>
-          <InputText v-model="pesquisa" @input="atualizarFiltro" placeholder="Nome, email ou empresa..." class="custom-minimal-element w-full" />
-        </div>
-
-        <div class="md:col-span-3 flex flex-col gap-1 md:border-l border-slate-100 dark:border-slate-800 md:pl-4 pr-2">
-          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-clock text-[8px]"></i> Referência</span>
-          <Dropdown v-model="filtroTipoData" :options="opcoesTipoData" optionLabel="label" optionValue="value" class="custom-minimal-element w-full" />
-        </div>
-
-        <div class="md:col-span-2 flex flex-col gap-1 md:border-l border-slate-100 dark:border-slate-800 md:pl-4 pr-2">
-          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-calendar text-[8px]"></i> A partir de</span>
-          <Calendar v-model="filtroDataInicio" dateFormat="dd/mm/yy" placeholder="Início..." class="custom-minimal-element w-full" :showIcon="false" />
-        </div>
-
-        <div class="md:col-span-2 flex flex-col gap-1 md:border-l border-slate-100 dark:border-slate-800 md:pl-4 pr-2">
-          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-calendar text-[8px]"></i> Até</span>
-          <Calendar v-model="filtroDataFim" dateFormat="dd/mm/yy" placeholder="Fim..." class="custom-minimal-element w-full" :showIcon="false" />
-        </div>
-
-        <div class="md:col-span-1 flex justify-end">
-          <Button @click="limparFiltros" icon="pi pi-filter-slash" class="!bg-slate-50 dark:!bg-slate-800 hover:!bg-rose-50 dark:hover:!bg-rose-500/10 !text-slate-400 hover:!text-rose-500 !border-none transition-all w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer shadow-sm" v-tooltip.top="'Limpar todos os filtros'" />
-        </div>
-      </div>
-
-      <div class="h-px w-full bg-slate-50 dark:bg-slate-800/60 my-1 ml-2"></div>
-
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pl-2 md:pl-3">
-
-        <div class="md:col-span-3 flex flex-col gap-1 pr-2">
-          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-sitemap text-[8px]"></i> Grupo</span>
-          <Dropdown v-model="filtroCompanhia" :options="companhias" optionLabel="label" optionValue="value" placeholder="Todas" class="custom-minimal-element w-full" />
-        </div>
-
-        <div class="md:col-span-3 flex flex-col gap-1 md:border-l border-slate-100 dark:border-slate-800 md:pl-4 pr-2">
-          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-users text-[8px]"></i> Responsável</span>
-          <Dropdown v-model="filtroGestor" :options="gestores" optionLabel="label" optionValue="value" placeholder="Todos" filter class="custom-minimal-element w-full" />
-        </div>
-
-        <div class="md:col-span-2 flex flex-col gap-1 md:border-l border-slate-100 dark:border-slate-800 md:pl-4 pr-2">
-          <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="pi pi-tag text-[8px]"></i> Status</span>
-          <Dropdown v-model="filtroStatus" :options="opcoesStatus" optionLabel="label" optionValue="value" placeholder="Todos" class="custom-minimal-element w-full" />
-        </div>
-
-        <div class="md:col-span-4 flex flex-col sm:flex-row items-center justify-end gap-3 h-full mt-3 md:mt-0">
-          
-          <div class="flex items-center justify-between w-full sm:w-auto gap-3 bg-sky-50 dark:bg-sky-500/10 px-3.5 py-2.5 rounded-2xl border border-sky-100 dark:border-sky-500/20 cursor-pointer hover:bg-sky-100 dark:hover:bg-sky-500/20 transition-colors shadow-sm" @click="mostrarApenasAmanha = !mostrarApenasAmanha">
-            <div class="flex items-center gap-2">
-              <i class="pi pi-calendar-plus text-sky-500 text-xs" :class="{'animate-bounce': mostrarApenasAmanha}"></i>
-              <span class="text-[10px] font-black uppercase tracking-widest" :class="mostrarApenasAmanha ? 'text-sky-600 dark:text-sky-400' : 'text-slate-500 dark:text-slate-400'">Disparos Iminentes</span>
-            </div>
-            <InputSwitch v-model="mostrarApenasAmanha" class="scale-75 pointer-events-none" />
-          </div>
-
-          <div class="flex items-center justify-between w-full sm:w-auto gap-3 bg-slate-50 dark:bg-slate-800/50 px-3.5 py-2.5 rounded-2xl border border-slate-100 dark:border-slate-700/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm" @click="mostrarInativos = !mostrarInativos">
-            <span class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Ver Inativos</span>
-            <InputSwitch v-model="mostrarInativos" class="scale-75 pointer-events-none" />
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden p-6 pt-2">
-      <DataTable :value="clientesFiltrados" v-model:selection="clientesSelecionados" :paginator="true" :rows="10" :loading="loading" dataKey="cliente_id" class="p-datatable-sm p-datatable-custom" :globalFilterFields="['nome', 'email', 'empresa']" v-model:filters="filtrosTabela" rowHover>
-        <template #empty><div class="text-center py-12 text-[12px] text-slate-400 italic">Nenhum cliente atende aos filtros.</div></template>
-        
-        <Column selectionMode="multiple" headerStyle="width: 3rem"></Column>
-        
-        <Column field="nome" header="Contato" sortable style="min-width: 220px">
-          <template #body="slotProps">
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-orange-50 dark:bg-slate-800 text-orange-500 dark:text-slate-300 font-black flex items-center justify-center shrink-0 border border-orange-100 dark:border-slate-700 text-[10px]">{{ gerarIniciais(slotProps.data.nome) }}</div>
-              <div class="flex flex-col leading-tight"><span class="text-[13px] font-bold text-slate-800 dark:text-white">{{ slotProps.data.nome }}</span><span class="text-[10px] text-slate-400 font-medium">{{ slotProps.data.email }}</span></div>
-            </div>
+        <DataTable :value="clientesFiltrados" v-model:selection="clientesSelecionados" :paginator="clientesFiltrados.length > 10" :rows="10"
+          :loading="loading" dataKey="cliente_id" responsiveLayout="stack" breakpoint="768px" class="env-tabela" rowHover>
+          <template #empty>
+            <EstadoVazio v-if="!clientes.length && !loading" icone="pi-users" titulo="Nenhum contato ainda" texto="Importe a planilha dos seus clientes ou cadastre o primeiro contato para começar a enviar pesquisas.">
+              <router-link to="/importacao" class="env-btn-primario"><i class="pi pi-upload text-xs"></i>Importar planilha</router-link>
+              <button v-if="podeCriar" @click="dialogContato = true" class="env-btn-secundario"><i class="pi pi-plus text-xs"></i>Cadastrar contato</button>
+            </EstadoVazio>
+            <EstadoVazio v-else-if="filtroStatus === 'fila' && !pesquisa && !filtrosExtras" icone="pi-inbox" titulo="Ninguém na fila agora" :texto="`Todos os contatos ativos já receberam a pesquisa nos últimos ${recorrencia} dias.`">
+              <button @click="filtroStatus = null" class="env-btn-secundario">Ver todos os contatos</button>
+            </EstadoVazio>
+            <EstadoVazio v-else-if="filtroStatus === 'erro' && !pesquisa && !filtrosExtras" icone="pi-check-circle" titulo="Nenhum envio com erro" texto="Todos os e-mails saíram normalmente.">
+              <button @click="filtroStatus = null" class="env-btn-secundario">Ver todos os contatos</button>
+            </EstadoVazio>
+            <EstadoVazio v-else-if="!loading" icone="pi-filter-slash" titulo="Ninguém com esses filtros" texto="Tente outra busca ou limpe os filtros.">
+              <button @click="limparFiltros" class="env-btn-secundario">Limpar filtros</button>
+            </EstadoVazio>
           </template>
-        </Column>
 
-        <Column header="Ação" class="!py-0 text-center" style="width: 80px">
-          <template #body="slotProps">
-            <div class="flex justify-center items-center h-full">
-              <div v-if="slotProps.data.tem_acao_pendente" 
-                  class="relative flex items-center justify-center"
-                  v-tooltip.top="'Este cliente possui ações pendentes nos Planos de Ação.'">
-                <span class="animate-ping absolute inline-flex h-6 w-6 rounded-full bg-amber-400 opacity-30"></span>
-                <i class="pi pi-bolt text-amber-500 text-lg z-10"></i>
+          <Column v-if="podeDisparar" selectionMode="multiple" headerStyle="width: 3rem" />
+
+          <Column field="nome" header="Contato" sortable style="min-width: 200px; max-width: 320px">
+            <template #body="{ data }">
+              <div class="flex flex-col min-w-0">
+                <span class="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  {{ data.nome || 'Sem nome' }}
+                  <i v-if="data.tem_acao_pendente" class="pi pi-bolt text-amber-500 text-xs ml-1" v-tooltip.top="'A empresa tem plano de ação em aberto'" aria-label="Plano de ação em aberto"></i>
+                </span>
+                <span class="text-sm text-slate-500 dark:text-slate-400 break-all">{{ data.email }}</span>
+                <span class="text-sm text-slate-500 dark:text-slate-400">
+                  {{ data.empresa || 'Sem empresa' }}<template v-if="data.cargo"> · {{ data.cargo }}</template><template v-if="data.perfil_decisor"> · {{ data.perfil_decisor }}</template>
+                </span>
               </div>
-              
-              <i v-else class="pi pi-check-circle text-emerald-500/10 text-xs"></i>
-            </div>
-          </template>
-        </Column>
+            </template>
+          </Column>
 
-        <Column field="empresa" header="Empresa e Cargo" sortable style="min-width: 180px">
-          <template #body="slotProps">
-            <div class="flex flex-col items-start gap-1">
-              <span class="text-[12px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-tight">{{ slotProps.data.empresa || 'Sem Empresa' }}</span>
-              <div class="flex items-center gap-1">
-                <Tag :value="slotProps.data.perfil_decisor || 'Operacional'" :severity="slotProps.data.perfil_decisor === 'Decisor' ? 'warning' : 'info'" class="rounded-md text-[8px] px-1.5 py-0.5 uppercase tracking-wider font-black shadow-sm" />
-                <span class="text-[9px] text-slate-400 font-bold ml-1 truncate max-w-[100px]">{{ slotProps.data.cargo || '' }}</span>
-              </div>
-            </div>
-          </template>
-        </Column>
-
-        <Column field="gestor" header="Responsável" sortable style="min-width: 140px">
-          <template #body="slotProps">
-              <span v-if="slotProps.data.gestor" class="text-[9px] font-black text-sky-500 uppercase tracking-widest bg-sky-50 dark:bg-sky-500/10 px-2 py-1 rounded-md border border-sky-100 dark:border-sky-500/20 whitespace-nowrap">
-                <i class="pi pi-briefcase mr-1"></i>{{ slotProps.data.gestor }}
-              </span>
-              <span v-else class="text-[9px] text-slate-400 italic">Sem Responsável</span>
-          </template>
-        </Column>
-
-        <Column field="status_envio" header="Status" sortable>
-          <template #body="{ data }">
-            <div class="flex flex-col items-start gap-1">
-              
-              <Tag v-if="data.ativo === 0 || data.ativo === false" value="Contato Inativo" class="!bg-slate-200 dark:!bg-slate-800 !text-slate-400 !text-[10px] !font-black uppercase tracking-widest !px-3 shadow-sm line-through" />
-              
-              <template v-else>
-                <Tag v-if="data.status_envio === 'Processando...'" value="A Processar" icon="pi pi-spin pi-spinner" class="!bg-amber-100 dark:!bg-amber-900/30 !text-amber-600 dark:!text-amber-400 !text-[10px] !font-black uppercase tracking-widest !px-3 shadow-sm gap-1.5" />
-                
-                <Tag v-else-if="data.status_envio === 'Respondido'" value="Respondido" severity="success" class="!text-[10px] !font-black uppercase tracking-widest !px-3 shadow-sm" />
-                <Tag v-else-if="data.status_envio === 'Pendente'" value="Na Fila" class="!bg-slate-100 dark:!bg-slate-800 !text-slate-500 !text-[10px] !font-black uppercase tracking-widest !px-3" />
-                <Tag v-else-if="data.status_envio === 'Enviado'" value="Enviado" severity="info" class="!text-[10px] !font-black uppercase tracking-widest !px-3 shadow-sm" />
-                <Tag v-else-if="data.status_envio === 'Erro'" value="Falha" severity="danger" v-tooltip.top="data.erro_msg || 'Erro desconhecido'" class="!text-[10px] !font-black uppercase tracking-widest !px-3 shadow-sm cursor-help" />
-                <Tag v-else value="Não Iniciado" class="!bg-slate-50 dark:!bg-slate-800/30 !text-slate-400 !text-[10px] !font-black uppercase tracking-widest !px-3 border border-slate-200 dark:border-slate-700/50" />
-
-                <div v-if="data.status_envio === 'Enviado'" class="flex items-center gap-1.5 ml-1" v-tooltip.top="`Enviado em: ${data.data_envio_inicial ? new Date(data.data_envio_inicial).toLocaleDateString() : '---'}`">
-                  <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-                    {{ (data.lembretes_enviados || 0) === 0 ? 'Aguardando' : `${data.lembretes_enviados}º Lembrete` }}
+          <Column field="status_envio" header="Situação" sortable style="min-width: 220px">
+            <template #body="{ data }">
+              <div class="flex flex-col items-start gap-1 min-w-0">
+                <span :class="['env-tag', situacao(data).classe]">
+                  <i v-if="grupoDoStatus(data) === 'processando'" class="pi pi-spin pi-spinner text-xs"></i>{{ situacao(data).rotulo }}
+                </span>
+                <template v-if="ativo(data)">
+                  <span v-if="grupoDoStatus(data) === 'aguardando'" class="text-sm text-slate-600 dark:text-slate-300">
+                    Enviada em {{ formatarData(data.data_envio_inicial || data.ultimo_envio) || '—' }}
                   </span>
-                  <div class="flex gap-0.5">
-                    <div :class="['w-1.5 h-1.5 rounded-full transition-colors', (data.lembretes_enviados || 0) >= 1 ? 'bg-orange-500' : 'bg-slate-200 dark:bg-slate-700']"></div>
-                    <div :class="['w-1.5 h-1.5 rounded-full transition-colors', (data.lembretes_enviados || 0) >= 2 ? 'bg-orange-500' : 'bg-slate-200 dark:bg-slate-700']"></div>
-                    <div :class="['w-1.5 h-1.5 rounded-full transition-colors', (data.lembretes_enviados || 0) >= 3 ? 'bg-rose-500' : 'bg-slate-200 dark:bg-slate-700']"></div>
-                  </div>
-                </div>
+                  <span v-if="grupoDoStatus(data) === 'aguardando'" class="text-sm text-slate-500 dark:text-slate-400">{{ textoLembrete(data) }}</span>
+                  <span v-else-if="grupoDoStatus(data) === 'respondido'" class="text-sm text-slate-500 dark:text-slate-400">
+                    Respondeu<template v-if="Number(data.lembretes_enviados) > 0"> depois de {{ plural(Number(data.lembretes_enviados), 'lembrete', 'lembretes') }}</template>
+                  </span>
+                  <template v-else-if="grupoDoStatus(data) === 'erro'">
+                    <span class="text-sm text-slate-600 dark:text-slate-300 max-w-[340px]">{{ causaDoErro(data).texto }}</span>
+                    <button v-if="causaDoErro(data).assinatura" @click="router.push('/assinatura')" class="env-link">Ver assinatura</button>
+                    <router-link v-else-if="causaDoErro(data).configuracao && ehAdmin" to="/configuracoes" class="env-link">Abrir Configurações</router-link>
+                  </template>
+                </template>
+              </div>
+            </template>
+          </Column>
 
-                <div v-if="data.status_envio === 'Respondido'" class="flex items-center ml-1">
-                    <span class="text-[8px] font-black text-emerald-500/70 dark:text-emerald-400/50 uppercase tracking-widest">Ciclo Fechado</span>
-                </div>
-              </template>
+          <Column field="proximo_envio" header="Próximo envio" sortable style="min-width: 140px">
+            <template #body="{ data }">
+              <div class="flex flex-col">
+                <span class="text-sm text-slate-700 dark:text-slate-200 tabular-nums">
+                  {{ !ativo(data) ? '—' : grupoDoStatus(data) === 'fila' ? (automaticoLigado ? 'No próximo envio' : 'Quando você enviar') : (formatarData(data.proximo_envio) || '—') }}
+                </span>
+                <span v-if="formatarData(data.ultimo_envio) && grupoDoStatus(data) !== 'aguardando'" class="text-sm text-slate-500 dark:text-slate-400">Último: {{ formatarData(data.ultimo_envio) }}</span>
+              </div>
+            </template>
+          </Column>
 
-            </div>
-          </template>
-        </Column>
+          <Column field="gestor" header="Responsável" sortable style="min-width: 130px">
+            <template #body="{ data }">
+              <span class="text-sm" :class="data.gestor ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'">{{ data.gestor || 'Sem responsável' }}</span>
+            </template>
+          </Column>
 
-        <Column style="min-width: 200px">
-          <template #header>
-            <div class="flex flex-col">
-              <span>Ciclo de Envio</span>
-              <span class="text-[8px] text-orange-500 uppercase tracking-widest mt-0.5">A cada {{ regrasNPS.recorrencia_dias }} dias</span>
-            </div>
-          </template>
-          
-          <template #body="slotProps">
-            <div class="flex flex-col gap-1.5 bg-slate-50/50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-              <div class="flex items-center justify-between text-[10px]"><span class="text-slate-400 font-bold uppercase">Último:</span><span class="text-slate-600 dark:text-slate-300 font-bold">{{ formatarData(slotProps.data.ultimo_envio) }}</span></div>
-              <div class="flex items-center justify-between text-[10px]"><span class="text-orange-500 font-bold uppercase">Próximo:</span><span class="text-orange-600 font-black">{{ formatarData(slotProps.data.proximo_envio) }}</span></div>
-            </div>
-          </template>
-        </Column>
-
-        <Column header="Ações" alignFrozen="right" style="width: 130px">
-          <template #body="slotProps">
-            <div class="flex justify-end items-center"> 
-              <Button 
-                v-if="temPermissao('audiencia:disparar')"
-                :icon="idsEnviando.includes(slotProps.data.cliente_id) ? 'pi pi-spin pi-spinner' : 'pi pi-send'" 
-                v-tooltip.top="(!slotProps.data.ativo && slotProps.data.ativo !== null) ? 'Envio bloqueado (Contato Inativo)' : (idsEnviando.includes(slotProps.data.cliente_id) ? 'Processando...' : 'Forçar Disparo')" 
-                @click="dispararIndividual(slotProps.data)" 
-                :disabled="(!slotProps.data.ativo && slotProps.data.ativo !== null) || enviandoEmail || idsEnviando.includes(slotProps.data.cliente_id)" 
-                :class="[
-                  'w-7 h-7 rounded-lg transition-colors !text-xs p-0 flex items-center justify-center !border-none',
-                  (!slotProps.data.ativo && slotProps.data.ativo !== null) ? '!bg-slate-100 dark:!bg-slate-800 !text-slate-300 dark:!text-slate-600 opacity-60 cursor-not-allowed' : '!bg-orange-50 !text-orange-500 hover:!bg-orange-100'
-                ]" 
-              />
-            </div>
-          </template>
-        </Column>
-      </DataTable>
-    </div>
-
-    <Dialog v-model:visible="clienteDialog" :style="{width: '550px'}" :header="editando ? 'Editar Registro' : 'Novo Contato'" :modal="true" class="rounded-[2.5rem] overflow-hidden p-0 custom-dialog">
-      <div class="p-6 md:p-8 space-y-4 bg-slate-50/50 dark:bg-slate-900">
-        
-        <div class="flex flex-col gap-1.5">
-          <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Nome Completo *</label>
-          <InputText v-model="cliente.nome" class="custom-input w-full" placeholder="Ex: João Silva" />
-        </div>
-        
-        <div class="flex flex-col gap-1.5">
-          <label class="text-[10px] font-black uppercase text-slate-500 ml-1">E-mail Corporativo *</label>
-          <InputText v-model="cliente.email" type="email" class="custom-input w-full" placeholder="joao@empresa.com" />
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Telefone</label>
-            <InputText v-model="cliente.telefone" class="custom-input w-full" placeholder="+351 900 000 000" />
-            </div>
-
-            <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Empresa</label>
-            <Dropdown v-model="cliente.empresa" :options="empresas" optionLabel="nome" optionValue="nome" editable filter placeholder="Selecione ou digite" class="custom-dropdown w-full" />
-            </div>
-        </div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Perfil</label>
-            <Dropdown v-model="cliente.perfil_decisor" :options="perfis" optionLabel="nome" optionValue="nome" editable placeholder="Selecione ou digite" class="custom-dropdown w-full" />
-            </div>
-            
-            <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Cargo *</label>
-            <Dropdown v-model="cliente.cargo" :options="cargos" optionLabel="nome" optionValue="nome" editable filter placeholder="Selecione ou digite" class="custom-dropdown w-full" />
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Responsável</label>
-            <Dropdown v-model="cliente.gestor" :options="gestores.filter(g => g.value !== null)" optionLabel="label" optionValue="value" editable filter placeholder="Atribuir Responsável" class="custom-dropdown w-full" />
-            </div>
-            
-            <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase text-slate-500 ml-1">Segmento</label>
-            <Dropdown v-model="cliente.segmento" :options="segmentos" optionLabel="nome" optionValue="nome" editable filter placeholder="Selecione ou digite" class="custom-dropdown w-full" />
-            </div>
-        </div>
-
-      </div>
-      <template #footer>
-        <div class="px-8 pb-8 pt-4 bg-slate-50/50 dark:bg-slate-900 flex gap-3 w-full">
-          <Button label="Cancelar" text class="flex-1 font-bold text-[11px] text-slate-400" @click="clienteDialog = false" />
-          <Button v-if="temPermissao('clientes:criar') || temPermissao('clientes:editar')" :label="editando ? 'Salvar' : 'Adicionar'" :loading="submetendo" class="flex-1 !bg-indigo-500 !text-white !rounded-xl font-bold text-[11px] shadow-lg hover:scale-[1.02] transition-transform border-none py-3" @click="salvarCliente" />
-        </div>
-      </template>
-    </Dialog>
-
-    <Dialog v-model:visible="dialogRegras" :style="{width: '420px'}" header="Regras de Disparo" :modal="true" :draggable="false" class="custom-dialog">
-      
-      <div class="flex flex-col gap-6 pt-2">
-        
-        <div class="flex flex-col gap-1.5 animate-fadein">
-          <label class="text-sm font-bold text-slate-700 dark:text-slate-300">Ciclo de Carência (Dias)</label>
-          <span class="p-input-icon-left">
-             <i class="pi pi-sync text-slate-400"></i>
-             <InputText v-model.number="regrasForm.recorrencia_dias" type="number" class="custom-input w-full" placeholder="Ex: 90" />
-          </span>
-          <small class="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-            Tempo em que um cliente fica bloqueado de receber novas pesquisas após responder.
-          </small>
-        </div>
-        
-        <div class="flex flex-col gap-1.5 animate-fadein" style="animation-delay: 0.1s;">
-          <label class="text-sm font-bold text-slate-700 dark:text-slate-300">Lembrete Automático (Dias)</label>
-          <span class="p-input-icon-left">
-             <i class="pi pi-clock text-slate-400"></i>
-             <InputText v-model.number="regrasForm.lembrete_dias" type="number" class="custom-input w-full" placeholder="Ex: 15" />
-          </span>
-          <small class="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-            Dias de espera para enviar um e-mail de reforço para quem ignorou o primeiro envio.
-          </small>
-        </div>
-
+          <Column v-if="podeDisparar" header="" headerStyle="width: 1%">
+            <template #body="{ data }">
+              <div class="flex justify-end w-full">
+                <button v-if="ativo(data)" @click="abrirEnvio(data)" :disabled="idsEnviando.includes(data.cliente_id) || grupoDoStatus(data) === 'processando'"
+                  class="env-btn-secundario env-btn-pequeno" :aria-label="`Enviar pesquisa para ${data.nome}`">
+                  <i :class="['pi text-xs', idsEnviando.includes(data.cliente_id) ? 'pi-spin pi-spinner' : grupoDoStatus(data) === 'erro' ? 'pi-refresh' : 'pi-send']"></i>
+                  {{ grupoDoStatus(data) === 'erro' ? 'Tentar de novo' : 'Enviar' }}
+                </button>
+                <span v-else class="text-sm text-slate-400" v-tooltip.top="'Contatos inativos não recebem pesquisas'">Inativo</span>
+              </div>
+            </template>
+          </Column>
+        </DataTable>
       </div>
 
-      <template #footer>
-        <div class="flex items-center gap-3 w-full pt-5 mt-2 border-t border-slate-100 dark:border-slate-800/60">
-          <Button label="Cancelar" text class="flex-1 font-bold text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors" @click="dialogRegras = false" />
-          <Button label="Salvar Regras" :loading="savingConfig" iconPos="right" :icon="savingConfig ? '' : 'pi pi-check'" class="flex-1 !bg-orange-500 hover:!bg-orange-600 !text-white !border-none !rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 transition-all duration-300 !py-2.5" @click="atualizarRegras" />
-        </div>
-      </template>
-    </Dialog>
-    
+      <HistoricoEnvios v-if="aba === 'historico'" :logs="logs" :clientes="clientes" :carregando="carregandoLogs"
+        :podeDisparar="podeDisparar" :idsEnviando="idsEnviando" @reenviar="abrirEnvio">
+        <template #acao-vazio>
+          <button v-if="podeDisparar" @click="aba = 'contatos'; abrirEnvio()" class="env-btn-primario"><i class="pi pi-send text-xs"></i>Enviar primeira pesquisa</button>
+        </template>
+      </HistoricoEnvios>
+    </section>
+
+    <AjudaEnvios v-model:visible="ajudaVisivel" :recorrencia="recorrencia" />
+    <DialogRegrasEnvio v-model:visible="dialogRegras" :regras="regras" :enviosAtivos="enviosAtivos" @salvo="aoSalvarRegras" />
+    <DialogConfirmarEnvio v-model:visible="dialogEnvio" :pessoas="pessoasEnvio" :inativos="inativosEnvio" :origem="origemEnvio"
+      :bloqueio="bloqueioAssinatura" :enviando="enviando" @confirmar="confirmarEnvio" />
+    <DialogNovoContato v-model:visible="dialogContato" :empresas="empresas" :perfis="perfis" :cargos="cargos" :gestores="gestores"
+      :segmentos="segmentos" @salvo="sincronizar" />
   </div>
 </template>
 
 <style scoped>
 @reference "../style.css";
 
-.animate-fadein { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+.env-aba { @apply inline-flex items-center gap-2 px-3 py-2.5 -mb-px border-b-2 border-transparent text-sm font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap hover:text-slate-800 dark:hover:text-slate-200; }
+.env-aba-ativa { @apply border-orange-500 text-orange-700 dark:text-orange-400; }
 
-/* ==========================================
-   🌟 FILTROS ESTILO DASHBOARD
-   ========================================== */
-
-:deep(.custom-input-minimal),
-:deep(.custom-dropdown-minimal),
-:deep(.custom-calendar-minimal .p-inputtext) {
-    background-color: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    color: inherit !important;
-    @apply text-[10px] font-black uppercase text-slate-800 dark:text-white w-full outline-none ring-0;
+/* Tabelas (também usadas pelo Histórico) */
+:deep(.env-tabela) { @apply bg-transparent!; font-family: inherit; }
+:deep(.env-tabela .p-datatable-wrapper) { @apply overflow-x-auto; }
+:deep(.env-tabela .p-datatable-thead > tr > th) { @apply bg-slate-50! dark:bg-slate-800/60! text-xs! font-semibold! text-slate-500! dark:text-slate-400! border-slate-100! dark:border-slate-800! py-3! px-4! whitespace-nowrap; }
+:deep(.env-tabela .p-datatable-thead > tr > th .p-sortable-column-icon) { @apply text-slate-400! w-3! h-3!; }
+:deep(.env-tabela .p-datatable-tbody > tr) { @apply bg-white! dark:bg-slate-900! text-slate-700! dark:text-slate-200!; }
+:deep(.env-tabela .p-datatable-tbody > tr:hover) { @apply bg-slate-50! dark:bg-slate-800/50!; }
+:deep(.env-tabela .p-datatable-tbody > tr.p-highlight) { @apply bg-orange-50! dark:bg-orange-500/10!; }
+:deep(.env-tabela .p-datatable-tbody > tr > td) { @apply py-3! px-4! text-sm border-slate-100! dark:border-slate-800! align-top; }
+:deep(.env-tabela .p-datatable-emptymessage > td) { @apply p-0!; }
+:deep(.env-tabela .p-paginator) { @apply bg-transparent! border-0! text-sm; }
+:deep(.env-tabela .p-paginator .p-paginator-page.p-highlight) { @apply bg-orange-50! text-orange-700! dark:bg-orange-500/15! dark:text-orange-300!; }
+:deep(.env-tabela .p-paginator button) { @apply dark:text-slate-400!; }
+:deep(.env-tabela .p-datatable-loading-overlay) { @apply bg-white/60! dark:bg-slate-900/60!; }
+:deep(.env-tabela .p-checkbox .p-checkbox-box) { @apply border-slate-300! dark:border-slate-600! dark:bg-slate-900!; }
+:deep(.env-tabela .p-checkbox .p-checkbox-box.p-highlight) { @apply border-orange-500! bg-orange-500!; }
+:deep(.env-tabela .p-column-title) { @apply text-sm font-semibold text-slate-500 dark:text-slate-400 mr-4 shrink-0; }
+@media (max-width: 767px) {
+  :deep(.env-tabela .p-datatable-tbody > tr) { @apply border-b! border-slate-200! dark:border-slate-800! py-1; }
+  :deep(.env-tabela .p-datatable-tbody > tr > td) { @apply border-0! py-2! px-1! gap-2 min-w-0; }
+  :deep(.env-tabela .p-datatable-tbody > tr > td > div),
+  :deep(.env-tabela .p-datatable-tbody > tr > td > span:not(.p-column-title)) { @apply flex-1 min-w-0 items-end text-right; }
+  :deep(.env-tabela .p-datatable-tbody > tr > td > div > span) { @apply max-w-full; }
+  :deep(.env-tabela .p-datatable-tbody > tr > td:last-child) { @apply justify-end!; }
+  :deep(.env-tabela .p-datatable-tbody > tr > td:last-child .p-column-title) { @apply hidden; }
+  :deep(.env-tabela .p-datatable-tbody > tr > td:last-child > div) { @apply flex-none w-auto; }
+  :deep(.env-tabela .p-datatable-tbody > tr.p-datatable-emptymessage > td) { @apply block! w-full!; }
+  :deep(.env-tabela .p-datatable-tbody > tr.p-datatable-emptymessage > td > div) { @apply items-center text-center; }
 }
+</style>
 
-:deep(.custom-input) {
-    @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-orange-500/20 transition-all font-medium text-slate-800 dark:text-white h-[42px] rounded-xl px-4;
-}
+<style>
+@reference "../style.css";
+/* Estilos globais com prefixo env-: também valem nos diálogos e na ajuda (renderizados fora da página) */
+.env-btn-primario { @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap; }
+.env-btn-secundario { @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:border-orange-300 hover:text-orange-700 dark:hover:text-orange-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap; }
+.env-btn-pequeno { @apply h-9 px-3; }
+.env-btn-quadrado { @apply w-10 h-10 shrink-0 inline-flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-orange-600 hover:border-orange-300; }
+.env-link { @apply text-sm font-semibold text-orange-600 dark:text-orange-400 hover:underline; }
+.env-input { @apply h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20; }
+.dark .env-input { color-scheme: dark; }
+.env-contador { @apply text-xs font-semibold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 tabular-nums; }
+.env-switch.p-inputswitch.p-highlight .p-inputswitch-slider { @apply bg-orange-500!; }
+.env-switch.p-inputswitch:not(.p-highlight) .p-inputswitch-slider { @apply dark:bg-slate-700!; }
 
-:deep(.custom-input-minimal::placeholder),
-:deep(.custom-calendar-minimal .p-inputtext::placeholder) {
-    @apply text-slate-300! dark:text-slate-600! font-black!;
-}
+/* Situação */
+.env-tag { @apply inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-md whitespace-nowrap; }
+.env-tag-neutro { @apply bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300; }
+.env-tag-espera { @apply bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300; }
+.env-tag-ok { @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300; }
+.env-tag-erro { @apply bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300; }
 
-:deep(.p-inputtext:enabled:focus),
-:deep(.p-inputtext:enabled:hover),
-:deep(.p-dropdown:not(.p-disabled):focus),
-:deep(.p-dropdown:not(.p-disabled):hover) {
-    background-color: transparent !important;
-    border-color: transparent !important;
-    box-shadow: none !important;
-}
+/* Campos */
+.env-campo { @apply flex flex-col gap-1.5 min-w-0; }
+.env-campo > label, .env-campo > span { @apply text-sm font-semibold text-slate-700 dark:text-slate-200; }
+.env-campo .p-inputtext,
+.env-campo .p-dropdown { @apply w-full rounded-xl! border-slate-300! dark:border-slate-700! bg-white! dark:bg-slate-950! text-sm! text-slate-800! dark:text-slate-100!; }
+.env-campo .p-inputtext { @apply h-10 px-3!; font-family: inherit; }
+.env-painel li, .env-painel .p-inputtext { font-family: inherit; }
+.env-campo .p-inputnumber .p-inputtext { @apply w-full; }
+.env-campo .p-dropdown .p-inputtext { @apply h-auto border-0! bg-transparent!; }
+.env-campo .p-dropdown .p-dropdown-label.p-placeholder,
+.env-campo .p-inputtext::placeholder { @apply text-slate-400!; }
+.env-campo .p-dropdown .p-dropdown-trigger { @apply text-slate-400!; }
+.env-campo .p-inputtext:enabled:focus,
+.env-campo .p-dropdown:not(.p-disabled).p-focus { @apply border-orange-400! shadow-none! ring-2 ring-orange-500/20; }
+.env-painel.p-dropdown-panel { @apply dark:bg-slate-900! dark:border-slate-700!; }
+.env-painel .p-dropdown-item { @apply text-sm! dark:text-slate-200!; }
+.env-painel .p-dropdown-item.p-highlight { @apply bg-orange-50! text-orange-700! dark:bg-orange-500/15! dark:text-orange-300!; }
+.env-painel .p-dropdown-filter { @apply dark:bg-slate-950! dark:text-slate-100! dark:border-slate-700!; }
+.env-painel .p-dropdown-header { @apply dark:bg-slate-900!; }
+.env-painel .p-dropdown-empty-message { @apply dark:text-slate-400!; }
 
-:deep(.custom-dropdown-minimal .p-dropdown-label) {
-    @apply p-0! font-black! flex! items-center! text-[10px]! uppercase! text-slate-800! dark:text-white!;
-}
-:deep(.custom-dropdown-minimal .p-dropdown-trigger) {
-    @apply w-4! text-slate-400!;
-}
+/* Diálogos */
+.env-dialog.p-dialog { @apply rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-xl; }
+.env-dialog .p-dialog-header { @apply bg-white dark:bg-slate-900 px-6! py-4! border-b border-slate-100 dark:border-slate-800; }
+.env-dialog .p-dialog-title { @apply text-lg! font-bold! text-slate-900 dark:text-white; }
+.env-dialog .p-dialog-header-icon { @apply text-slate-500! dark:text-slate-400! hover:bg-slate-100! dark:hover:bg-slate-800!; }
+.env-dialog .p-dialog-content { @apply bg-white dark:bg-slate-900 px-6! py-5! text-slate-700 dark:text-slate-200; }
+.env-dialog .p-dialog-footer { @apply bg-slate-50 dark:bg-slate-900 px-6! py-4! border-t border-slate-100 dark:border-slate-800; }
 
-:deep(.p-dropdown-panel), :deep(.p-datepicker) {
-    @apply dark:bg-slate-800! dark:border-slate-700! shadow-xl!;
-}
-:deep(.p-dropdown-panel .p-dropdown-item) {
-    @apply text-xs! font-medium! text-slate-600! dark:text-slate-300!;
-}
-:deep(.p-dropdown-panel .p-dropdown-item.p-highlight) {
-    @apply bg-sky-500/10! text-sky-600! dark:text-sky-400!;
-}
-
-/* Esconde a barra de scroll horizontal mas mantém a funcionalidade */
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* ==========================================
-   🌟 TABELA E MODAIS
-   ========================================== */
-
-:deep(.p-datatable .p-datatable-thead > tr > th) { @apply bg-slate-50 dark:bg-slate-900 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 dark:border-slate-800 py-6 px-4; }
-:deep(.p-datatable .p-datatable-tbody > tr) { @apply bg-white dark:bg-slate-900 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors border-b border-slate-50 dark:border-slate-800/50 text-slate-700 dark:text-slate-300; }
-:deep(.p-datatable .p-datatable-tbody > tr > td) { @apply py-4 px-4; }
-
-:deep(.p-checkbox .p-checkbox-box) { @apply border-slate-300 dark:border-slate-600 rounded-md transition-colors; }
-:deep(.p-checkbox.p-highlight .p-checkbox-box) { @apply border-sky-500! bg-sky-500!; }
-
-:deep(.custom-dialog .p-dialog-header) { @apply bg-slate-50/50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-8 py-6; }
-:deep(.custom-dialog .p-dialog-content) { @apply dark:bg-slate-900; }
-:deep(.custom-dialog .p-dialog-title) { @apply text-lg font-black italic tracking-tight text-slate-800 dark:text-white; }
+/* Ajuda */
+.env-ajuda.p-sidebar { @apply bg-white! dark:bg-slate-950! dark:border-l dark:border-slate-800; }
+.env-ajuda .p-sidebar-header { @apply dark:bg-slate-950; }
+.env-ajuda .p-sidebar-close { @apply text-slate-500! dark:text-slate-400!; }
+.env-ajuda-bloco { @apply p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800; }
+.env-ajuda-bloco h3 { @apply flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-2; }
+.env-ajuda-bloco dd { @apply mt-1; }
 </style>

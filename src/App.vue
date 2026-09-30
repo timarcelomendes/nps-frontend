@@ -6,7 +6,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { temPermissao } from './utils/permissoes';
 import api from './services/api'; 
 import { ref, nextTick, onMounted, computed, watch } from 'vue'; 
-import { marked } from 'marked';
+import ChatAssistente from './components/chat/ChatAssistente.vue';
 
 // PrimeVue Components
 import { useToast } from 'primevue/usetoast';
@@ -117,10 +117,8 @@ const logout = () => {
   router.push('/login');
 };
 
-const exibirBotaoChat = computed(() => {
-  const rotasPublicas = ['Login', 'ResetPassword', 'RecuperarSenha', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica', 'FormularioPublico', 'Cadastro', 'Termos', 'Privacidade'];
-  return !rotasPublicas.includes(route.name);
-});
+const rotasPublicas = ['Login', 'ResetPassword', 'RecuperarSenha', 'ForgotPassword', 'redefinir-senha', 'PesquisaPublica', 'FormularioPublico', 'Cadastro', 'Termos', 'Privacidade'];
+const exibirBotaoChat = computed(() => !rotasPublicas.includes(route.name));
 
 // --- GESTÃO DO PERFIL E IMAGEM ---
 const abrirPerfil = () => {
@@ -195,103 +193,6 @@ watch(
   }
 );
 
-const renderMarkdown = (textoCru) => {
-  if (!textoCru) return '';
-  
-  marked.setOptions({
-    breaks: true,
-    gfm: true
-  });
-
-  return marked(textoCru);
-};
-
-const chatAberto = ref(false);
-const novaMensagem = ref('');
-const chatCarregando = ref(false);
-const historicoChat = ref([]);
-const sugestoesAtivas = ref([]);
-const chatContainer = ref(null);
-
-const enviarMensagem = async () => {
-  if (!novaMensagem.value.trim() || chatCarregando.value) return;
-
-  const userText = novaMensagem.value;
-  historicoChat.value.push({ role: 'user', content: userText });
-  
-  const iaIndex = historicoChat.value.push({ role: 'assistant', content: '' }) - 1;
-  novaMensagem.value = '';
-  chatCarregando.value = true;
-  sugestoesAtivas.value = []; // Reseta sugestões ao perguntar algo novo
-
-  try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/chat/perguntar`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${sessionStorage.getItem('token')}`
-      },
-      body: JSON.stringify({ 
-        mensagem: userText,
-        historico: historicoChat.value.slice(-6) 
-      })
-    });
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n\n');
-      buffer = lines.pop();
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = JSON.parse(line.replace('data: ', ''));
-          
-          if (data.texto) {
-            historicoChat.value[iaIndex].content += data.texto;
-            scrollToBottom();
-          }
-          
-          if (data.sugestoes) {
-            sugestoesAtivas.value = data.sugestoes;
-          }
-
-          else if (data.erro) {
-            historicoChat.value[iaIndex].content = `⚠️ Erro interno do servidor: ${data.erro}`;
-            scrollToBottom();
-          }
-        }
-      }
-    }
-  } catch (error) {
-    historicoChat.value[iaIndex].content = "⚠️ Erro de conexão com a Rakiti AI.";
-  } finally {
-    chatCarregando.value = false;
-    scrollToBottom();
-  }
-};
-
-const perguntar = (texto) => {
-  novaMensagem.value = texto;
-  enviarMensagem();
-};
-
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (chatContainer.value) {
-      chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-    }
-  });
-};
-
-const clientesRecentes = ref([]);
-const tagsCarregando = ref(true);
 
 // Aviso de teste grátis / pagamento (aparece no topo de todas as telas internas)
 const assinatura = ref(null);
@@ -306,25 +207,8 @@ const avisoAssinatura = computed(() => {
   if (['teste_expirado', 'atrasada', 'cancelada'].includes(a.status)) return { texto: a.mensagem, acao: a.status === 'atrasada' ? 'Pagar agora' : 'Escolher plano', grave: !a.pode_enviar };
   return null;
 });
-watch(() => route.name, (nome) => { if (!['Login', 'Cadastro'].includes(nome)) carregarAssinatura(); });
+watch(() => route.name, (nome) => { if (nome && !rotasPublicas.includes(nome) && sessionStorage.getItem('token')) carregarAssinatura(); });
 
-const carregarAtalhosChat = async () => {
-  if (!sessionStorage.getItem('token')) { tagsCarregando.value = false; return; }
-  tagsCarregando.value = true;
-  try {
-    const response = await api.get('/chat/clientes-recentes');
-    clientesRecentes.value = response.data;
-  } catch (error) {
-    console.error("Erro ao carregar atalhos dinâmicos:", error);
-    clientesRecentes.value = []; 
-  } finally {
-    tagsCarregando.value = false;
-  }
-};
-
-onMounted(() => {
-  carregarAtalhosChat(); 
-});
 
 </script>
 
@@ -678,131 +562,8 @@ onMounted(() => {
 
   <input type="file" ref="fileInput" class="hidden" accept="image/*" @change="onFileSelect" />
 
-  <button 
-    v-if="exibirBotaoChat"
-    @click="chatAberto = true"
-    class="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-400 hover:via-purple-400 hover:to-pink-400 text-white rounded-full p-4 shadow-2xl shadow-purple-900/40 transition-all hover:scale-110 flex items-center gap-2"
-  >
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 animate-pulse text-white">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
-    </svg>
-    <span class="font-bold hidden md:inline">NPS AI</span>
-  </button>
-
-  <Sidebar v-if="exibirBotaoChat" v-model:visible="chatAberto" position="right" class="w-full md:w-[450px] !bg-slate-900 !text-slate-100">
-    <template #header>
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-          <i class="pi pi-sparkles text-white text-lg"></i>
-        </div>
-        <div>
-          <h2 class="font-bold text-lg leading-tight">Rakiti AI</h2>
-          <span class="text-xs text-emerald-400 font-medium animate-pulse">● Online</span>
-        </div>
-      </div>
-    </template>
-
-    <div class="flex flex-col h-full overflow-hidden">
-      <div ref="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
-        
-        <div class="flex flex-col gap-1 items-start">
-          <div class="bg-slate-800 p-4 rounded-2xl rounded-tl-sm text-sm border border-slate-700 max-w-[90%] shadow-sm">
-            Olá, Marcelo. Como posso ajudar a analisar os dados de produto hoje?
-          </div>
-        </div>
-
-        <div v-for="(msg, index) in historicoChat" :key="index" class="flex gap-4 p-4 rounded-xl" :class="msg.role === 'user' ? 'bg-slate-800/50 ml-12' : 'bg-transparent mr-12 border border-slate-800/50'">
-          
-          <div 
-            class="w-8 h-8 rounded-full flex items-center justify-center shrink-0" 
-            :class="msg.role === 'user' ? 'bg-slate-800 text-slate-400 border border-slate-700' : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-md'"
-          >
-            <i :class="msg.role === 'user' ? 'pi pi-user' : 'pi pi-sparkles'" class="text-sm"></i>
-          </div>
-
-          <div class="flex-1 overflow-hidden">
-            <div class="text-xs font-bold mb-1" :class="msg.role === 'user' ? 'text-indigo-400' : 'text-fuchsia-400'">
-              {{ msg.role === 'user' ? 'Você' : 'Rakiti AI' }}
-            </div>
-            
-            <div 
-              v-if="msg.content" 
-              class="text-sm text-slate-300 leading-relaxed overflow-x-auto prose prose-invert max-w-none prose-p:my-1 prose-headings:mt-3 prose-headings:mb-2 prose-table:my-2 prose-td:py-1"
-            >
-              <span v-html="renderMarkdown(msg.content)"></span>
-            </div>
-
-            <div v-else-if="msg.role === 'ai' && chatCarregando" class="flex items-center gap-3 py-2">
-              <div class="flex gap-1.5 items-center">
-                <div class="w-2 h-2 rounded-full bg-fuchsia-500 animate-bounce" style="animation-delay: 0ms"></div>
-                <div class="w-2 h-2 rounded-full bg-fuchsia-500 animate-bounce" style="animation-delay: 150ms"></div>
-                <div class="w-2 h-2 rounded-full bg-fuchsia-500 animate-bounce" style="animation-delay: 300ms"></div>
-              </div>
-              <span class="text-xs text-slate-400/80 font-medium italic tracking-wide animate-pulse">
-                Consultando a base de dados...
-              </span>
-            </div>
-
-          </div>
-        </div>
-
-        <div v-if="sugestoesAtivas.length > 0 && !chatCarregando" class="flex flex-wrap gap-2 pt-2 animate-fade-in">
-          <button 
-            v-for="tag in sugestoesAtivas" 
-            :key="tag"
-            @click="perguntar(tag)"
-            class="px-3 py-1.5 bg-slate-800/50 hover:bg-fuchsia-600/20 hover:border-fuchsia-500 border border-slate-700 rounded-full text-[11px] text-slate-300 transition-all flex items-center gap-2"
-          >
-            <i class="pi pi-bolt text-fuchsia-400 text-[10px]"></i>
-            {{ tag }}
-          </button>
-        </div>
-      </div>
-
-      <div class="mt-auto p-4 border-t border-slate-800 bg-slate-900/80 backdrop-blur-md">
-        <div class="flex gap-2 overflow-x-auto mb-3 pb-1 scrollbar-hide">
-          
-          <button 
-            v-for="cliente in clientesRecentes" 
-            :key="cliente"
-            @click="perguntar(`Resumo da ${cliente} nos últimos 30 dias`)" 
-            :disabled="tagsCarregando || chatCarregando"
-            class="text-[10px] uppercase font-bold tracking-wider whitespace-nowrap px-3 py-1.5 rounded-md border transition-all flex items-center gap-2"
-            :class="[
-              (tagsCarregando || chatCarregando) 
-                ? 'bg-slate-800/50 text-slate-600 border-slate-800 cursor-not-allowed opacity-50' 
-                : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white'
-            ]"
-          >
-            <i v-if="tagsCarregando" class="pi pi-spin pi-spinner text-[8px]"></i>
-            Resumo {{ cliente }}
-          </button>
-
-          <button 
-            @click="perguntar('Gere um comparativo Trimestral de todo o portfólio')" 
-            :disabled="chatCarregando"
-            class="text-[10px] uppercase font-bold tracking-wider text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 whitespace-nowrap px-3 py-1.5 rounded-md border border-indigo-500/30 transition-colors"
-          >
-            <i class="pi pi-chart-line mr-1 text-[8px]"></i> Visão Trimestral
-          </button>
-        </div>
-
-        <form @submit.prevent="enviarMensagem" class="relative">
-          <InputText 
-            v-model="novaMensagem" 
-            placeholder="Pergunte algo sobre os produtos..." 
-            class="w-full !bg-slate-950 !border-slate-700 !rounded-xl !pl-4 !pr-12 !py-4 focus:!ring-fuchsia-500 !text-sm"
-            :disabled="chatCarregando"
-          />
-          <button type="submit" :disabled="!novaMensagem.trim() || chatCarregando" 
-                  class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 text-white disabled:opacity-50 disabled:bg-slate-800 transition-all shadow-lg">
-            <i class="pi pi-send text-sm"></i>
-          </button>
-        </form>
-        <p class="text-[10px] text-slate-500 mt-2 text-center">A Rakiti AI pode processar dados históricos de NPS e Planos de Ação.</p>
-      </div>
-    </div>
-  </Sidebar>
+  <!-- Assistente de IA (botão flutuante + painel): components/chat/ChatAssistente.vue -->
+  <ChatAssistente v-if="exibirBotaoChat" />
 
   <Dialog 
       v-model:visible="dialogPerfil" 
@@ -964,36 +725,6 @@ onMounted(() => {
 
 :deep(.p-avatar img) {
   object-fit: cover !important;
-}
-
-/* No seu style.css ou App.vue */
-.prose table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 1rem 0;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-}
-.prose th, .prose td {
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Estilização para as tabelas Markdown dentro do chat */
-.prose table {
-  @apply w-full border-collapse my-3 text-[12px] bg-slate-900/50 rounded-lg overflow-hidden;
-}
-.prose th {
-  @apply bg-slate-700/50 p-2 text-fuchsia-400 font-bold border-b border-slate-600 text-left;
-}
-.prose td {
-  @apply p-2 border-b border-slate-800 text-slate-300;
-}
-.prose h1, .prose h2 {
-  @apply text-fuchsia-400 font-bold mb-2 mt-4 text-sm uppercase tracking-tight;
-}
-.prose blockquote {
-  @apply border-l-4 border-fuchsia-500 bg-fuchsia-500/10 p-3 my-3 italic rounded-r-lg text-slate-300;
 }
 
 /* Scrollbar fina e elegante */

@@ -1,514 +1,429 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import api from '../services/api';
-import { useToast } from 'primevue/usetoast';
-import Dropdown from 'primevue/dropdown';
-import Button from 'primevue/button';
-import ProgressBar from 'primevue/progressbar';
+// Importação de planilha: baixar modelo → enviar planilha → conferir prévia → importar.
+import { ref, computed, onMounted, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
+import Dropdown from 'primevue/dropdown';
 import InputSwitch from 'primevue/inputswitch';
 import MultiSelect from 'primevue/multiselect';
+import api from '../services/api';
+import PassosImportacao from '../components/importacao/PassosImportacao.vue';
+import ResultadoImportacao from '../components/importacao/ResultadoImportacao.vue';
+import { MODELOS, baixarModelo, problemasDaLinha, normalizarLinha } from '../components/importacao/validacao';
 
-const toast = useToast();
+const router = useRouter();
 
-// --- ESTADOS DO WIZARD ---
-const passoAtual = ref(1); 
-const tipoImportacao = ref('clientes'); // 'clientes' | 'respostas'
+// ---------- Etapas ----------
+const passo = ref(1);                 // 1 = escolher e enviar, 2 = conferir, 3 = pronto
+const tipo = ref('clientes');         // 'clientes' | 'respostas'
+const modeloBaixado = ref(false);
+const passoVisual = computed(() => passo.value === 1 ? (modeloBaixado.value ? 2 : 1) : passo.value === 2 ? 3 : 5);
+const modelo = computed(() => MODELOS[tipo.value]);
+
+const TIPOS = [
+  { valor: 'clientes', titulo: 'Clientes e contatos', texto: 'Quem vai receber as pesquisas: nome, e-mail, empresa, cargo e telefone.', icone: 'pi-users' },
+  { valor: 'respostas', titulo: 'Respostas antigas', texto: 'Notas de 0 a 10 e comentários de pesquisas que você já fez fora da Rakiti.', icone: 'pi-star' },
+];
+
+const escolherTipo = (valor) => { tipo.value = valor; modeloBaixado.value = false; };
+const baixar = () => { baixarModelo(tipo.value); modeloBaixado.value = true; };
+
+// ---------- Leitura do arquivo ----------
 const fileInput = ref(null);
-const ficheiroSelecionado = ref(null);
-const isProcessando = ref(false);
-const progresso = ref(0);
+const arquivo = ref(null);
+const lendo = ref(false);
+const erroLeitura = ref('');
+const arrastando = ref(false);
 
-// --- ESTADOS DE DADOS & CHAVES DINÂMICAS ---
-const dadosPreview = ref([]);
-const colunasDisponiveis = ref([]); 
-const chavesCliente = ref([]); 
-const chavesResposta = ref([]); 
-const configuracaoImportacao = ref({ overwrite: true });
-const ignorarErros = ref(false);
-const resumoFinal = ref(null);
-const companhiasDisponiveis = ref([]);
-const companhiaSelecionada = ref(null);
+const dados = ref([]);
+const colunas = ref([]);
+const chavesCliente = ref([]);
+const chavesResposta = ref([]);
 
-// ==========================================
-// 📥 CARREGAR DADOS INICIAIS
-// ==========================================
-onMounted(async () => {
-  try {
-    const response = await api.get('/cadastros/companhias');
-    companhiasDisponiveis.value = response.data || [];
-  } catch (error) {
-    console.error("Erro ao carregar companhias:", error);
-    toast.add({ severity: 'error', summary: 'Erro de Conexão', detail: 'Não foi possível carregar as companhias.' });
-  }
-});
+const escolherArquivo = () => { if (!lendo.value) fileInput.value?.click(); };
 
-// ==========================================
-// 📥 DOWNLOAD DO TEMPLATE DINÂMICO
-// ==========================================
-const baixarTemplate = () => {
-  let cabecalhos, exemplo, nomeArquivo;
-
-  if (tipoImportacao.value === 'clientes') {
-    cabecalhos = ['nome', 'email', 'empresa', 'perfil_decisor', 'segmento', 'telefone', 'cargo', 'valor_contrato', 'ativo', 'ultimo_envio'];
-    exemplo = ['Marcelo Mendes', 'marcelo@empresa.com', 'Distribuidora Exemplo', 'Decisor', 'Tecnologia', '+55 11 99999-0000', 'Product Manager', '50000', 'True', '2026-01-01'];
-    nomeArquivo = 'template_clientes_nps.csv';
-  } else {
-    cabecalhos = ['email', 'empresa', 'data_resposta', 'nota', 'comentario', 'perfil_decisor', 'segmento'];
-    exemplo = ['marcelo@empresa.com', 'Distribuidora Exemplo', '2026-03-15', '10', 'Excelente serviço!', 'Decisor', 'Tecnologia'];
-    nomeArquivo = 'template_respostas_nps.csv';
-  }
-
-  const csvContent = [
-    cabecalhos.join(','),
-    exemplo.join(',')
-  ].join('\n');
-
-  // \uFEFF é o BOM UTF-8. Garante que o Excel em PT-BR/PT-PT lê os acentos perfeitamente!
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', nomeArquivo);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
-// ==========================================
-// 🛡️ VALIDAÇÃO DINÂMICA ROBUSTA
-// ==========================================
-const getMotivoErro = (row) => {
-  if (row.detalhe) return row.detalhe;
-  if (row.tipo_pendencia) return 'Pendência: ' + row.tipo_pendencia;
-
-  if (tipoImportacao.value === 'clientes') {
-    if (!row.email || String(row.email).trim() === '') return "Email ausente (Obrigatório)";
-    if (!row.nome || String(row.nome).trim() === '') return "Nome ausente (Obrigatório)";
-    if (!row.empresa || String(row.empresa).trim() === '') return "Empresa não vinculada";
-  } 
-  else if (tipoImportacao.value === 'respostas') {
-    if (!row.email || String(row.email).trim() === '') return "Email ausente (Obrigatório)";
-    if (!row.empresa || String(row.empresa).trim() === '') return "Empresa não vinculada";
-    
-    if (row.nota === null || row.nota === undefined || String(row.nota).trim() === '') return "Nota NPS ausente";
-    
-    const notaNum = Number(row.nota);
-    if (isNaN(notaNum) || notaNum < 0 || notaNum > 10) return "A nota deve ser um número entre 0 e 10";
-    
-    if (!row.data_resposta || String(row.data_resposta).trim() === '') return "Data de resposta ausente";
-  }
-
-  const chavesSelecionadas = tipoImportacao.value === 'clientes' 
-    ? chavesCliente.value || []
-    : [...(chavesCliente.value || []), ...(chavesResposta.value || [])];
-
-  if (chavesSelecionadas.length > 0) {
-    const chavesFaltando = chavesSelecionadas.filter(chave => {
-      const valor = row[chave];
-      return valor === null || valor === undefined || String(valor).trim() === '';
-    });
-    
-    if (chavesFaltando.length > 0) {
-      return `Falta preencher: ${chavesFaltando.join(', ')}`;
-    }
-  }
-
-  return null;
-};
-
-const isRegistroValido = (row) => getMotivoErro(row) === null;
-
-const mostrarApenasInvalidos = ref(false);
-const registrosComErro = computed(() => dadosPreview.value.filter(row => !isRegistroValido(row)));
-const errosCount = computed(() => registrosComErro.value.length);
-const prontosCount = computed(() => dadosPreview.value.length - errosCount.value);
-
-const dadosFiltrados = computed(() => {
-  if (mostrarApenasInvalidos.value) return registrosComErro.value;
-  return dadosPreview.value;
-});
-
-const rowClass = (data) => isRegistroValido(data) ? '' : '!bg-rose-50/50 dark:!bg-rose-500/5';
-
-// ==========================================
-// 🔄 PROCESSAMENTO DO ARQUIVO
-// ==========================================
-const triggerFileInput = () => { fileInput.value.click(); };
-
-const processarFicheiro = async (event) => {
-  const file = event.target.files[0];
+const lerArquivo = async (file) => {
   if (!file) return;
-
-  ficheiroSelecionado.value = file;
-  isProcessando.value = true;
-  progresso.value = 30;
-
+  if (!/\.(csv|xlsx|xls)$/i.test(file.name)) {
+    erroLeitura.value = 'Esse tipo de arquivo não serve. Envie uma planilha do Excel (.xlsx ou .xls) ou um arquivo .csv.';
+    return;
+  }
+  arquivo.value = file;
+  erroLeitura.value = '';
+  lendo.value = true;
   const formData = new FormData();
   formData.append('file', file);
-
   try {
-    const response = await api.post('/importar/preview', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
-    
-    dadosPreview.value = response.data;
-    if (dadosPreview.value.length > 0) {
-      colunasDisponiveis.value = Object.keys(dadosPreview.value[0]).filter(k => k !== 'tipo_pendencia' && k !== 'detalhe');
+    const r = await api.post('/importar/preview', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+    const linhas = Array.isArray(r.data) ? r.data : [];
+    if (!linhas.length) {
+      erroLeitura.value = 'A planilha está vazia. Preencha a partir da segunda linha, abaixo dos nomes das colunas.';
+      return;
     }
-    
-    progresso.value = 100;
-    setTimeout(() => { passoAtual.value = 2; isProcessando.value = false; }, 500);
-
+    dados.value = linhas;
+    colunas.value = Object.keys(linhas[0]).filter(k => k !== 'tipo_pendencia' && k !== 'detalhe');
+    chavesCliente.value = colunas.value.includes('email') ? ['email'] : [];
+    chavesResposta.value = tipo.value === 'respostas' && colunas.value.includes('data_resposta') ? ['data_resposta'] : [];
+    mostrarSoProblemas.value = false;
+    ignorarErros.value = false;
+    erroImportacao.value = null;
+    passo.value = 2;
   } catch (error) {
-    console.error("Erro na pré-visualização:", error);
-    toast.add({ severity: 'error', summary: 'Erro de Leitura', detail: 'Não foi possível ler o arquivo. Verifique se o formato está correto (XLSX ou CSV).' });
-    isProcessando.value = false;
+    const detalhe = error?.response?.data?.detail;
+    erroLeitura.value = 'Não conseguimos ler esse arquivo. Salve de novo como .xlsx ou .csv a partir do modelo e tente outra vez.'
+      + (typeof detalhe === 'string' && detalhe ? ` (${detalhe.replace(/^Erro ao ler arquivo:\s*/, '')})` : '');
   } finally {
-    event.target.value = ''; 
+    lendo.value = false;
   }
 };
 
-// ==========================================
-// 🚀 ENVIO FINAL PARA O BACKEND
-// ==========================================
-const enviarParaBackend = async () => {
-  if (errosCount.value > 0 && !ignorarErros.value) {
-    toast.add({ severity: 'warn', summary: 'Ação Necessária', detail: `Existem ${errosCount.value} registros com erro. Corrija-os no arquivo ou ative a opção para os ignorar.`, life: 5000 });
-    return;
-  }
+const aoEscolherArquivo = (event) => { lerArquivo(event.target.files[0]); event.target.value = ''; };
+const aoSoltar = (event) => { arrastando.value = false; lerArquivo(event.dataTransfer?.files?.[0]); };
 
-  const dadosFinais = ignorarErros.value 
-    ? dadosPreview.value.filter(row => isRegistroValido(row)) 
-    : dadosPreview.value;
+// ---------- Conferência ----------
+const mostrarSoProblemas = ref(false);
+const ignorarErros = ref(false);
+const overwrite = ref(true);
+const companhias = ref([]);
+const companhia = ref(null);
+const opcoesAvancadas = ref(false);
 
-  if (dadosFinais.length === 0) {
-    toast.add({ severity: 'error', summary: 'Operação Abortada', detail: 'Não existem registros válidos para importar.' });
-    return;
-  }
+onMounted(async () => {
+  try { const r = await api.get('/cadastros/companhias'); companhias.value = r.data || []; } catch (e) { /* grupos são opcionais */ }
+});
 
-  isProcessando.value = true;
-  progresso.value = 20;
+const chavesUsadas = computed(() => tipo.value === 'clientes' ? chavesCliente.value : [...chavesCliente.value, ...chavesResposta.value]);
+const linhas = computed(() => dados.value.map((row, i) => ({ row, numero: i + 2, problemas: problemasDaLinha(row, tipo.value, chavesUsadas.value) })));
+const comProblema = computed(() => linhas.value.filter(l => l.problemas.length));
+const prontas = computed(() => linhas.value.filter(l => !l.problemas.length));
+const linhasVisiveis = computed(() => mostrarSoProblemas.value ? comProblema.value : linhas.value);
+const colunasFaltando = computed(() => modelo.value.obrigatorias.filter(c => !colunas.value.includes(c)));
+const colunasIgnoradas = computed(() => colunas.value.filter(c => !modelo.value.colunas.some(m => m.nome === c)));
 
+const linhasParaEnviar = computed(() => (ignorarErros.value ? prontas.value : linhas.value).map(l => normalizarLinha(l.row, tipo.value)));
+const bloqueio = computed(() => {
+  if (!chavesCliente.value.length) return 'Escolha em "Opções avançadas" a coluna usada para reconhecer quem já está cadastrado (recomendado: email).';
+  if (comProblema.value.length && !ignorarErros.value) return 'Corrija as linhas com problema na planilha e envie de novo, ou marque "Importar só as linhas sem problema".';
+  if (!linhasParaEnviar.value.length) return 'Nenhuma linha está pronta para importar.';
+  return '';
+});
+const rotuloImportar = computed(() => {
+  const n = comProblema.value.length && !ignorarErros.value ? prontas.value.length : linhasParaEnviar.value.length;
+  return tipo.value === 'clientes' ? `Importar ${n} ${n === 1 ? 'contato' : 'contatos'}` : `Importar ${n} ${n === 1 ? 'resposta' : 'respostas'}`;
+});
+
+// ---------- Importar ----------
+const importando = ref(false);
+const erroImportacao = ref(null);   // { texto, plano }
+const resumo = ref(null);
+const areaErro = ref(null);
+
+const importar = async () => {
+  if (bloqueio.value) return;
+  const enviados = linhasParaEnviar.value;
+  importando.value = true;
+  erroImportacao.value = null;
   try {
-    const payload = {
-      tipo: tipoImportacao.value,
-      dados: dadosFinais,
-      chaves_cliente: chavesCliente.value, 
-      chaves_resposta: tipoImportacao.value === 'respostas' ? chavesResposta.value : [],
-      
-      companhia_id: companhiaSelecionada.value,
-      configuracao: {
-        overwrite: configuracaoImportacao.value.overwrite,
-        companhia_id: companhiaSelecionada.value 
-      }
+    const r = await api.post('/importar/processar', {
+      tipo: tipo.value,
+      dados: enviados,
+      chaves_cliente: chavesCliente.value,
+      chaves_resposta: tipo.value === 'respostas' ? chavesResposta.value : [],
+      companhia_id: companhia.value,
+      configuracao: { overwrite: overwrite.value, companhia_id: companhia.value },
+    });
+    const processados = Number(r.data?.inseridos ?? 0);
+    // O servidor informa novos e atualizados separadamente
+    const novos = r.data?.novos ?? null;
+    const atualizados = r.data?.atualizados ?? null;
+    resumo.value = {
+      processados, novos, atualizados,
+      naoImportados: Number(r.data?.erros ?? 0),
+      descartados: ignorarErros.value ? comProblema.value.length : 0,
+      detalhes: Array.isArray(r.data?.detalhes) ? r.data.detalhes : [],
     };
-
-    progresso.value = 60;
-    const response = await api.post('/importar/processar', payload);
-
-    progresso.value = 100;
-    resumoFinal.value = {
-        inseridos: response.data.inseridos || dadosFinais.length,
-        erros: response.data.erros || 0,
-        detalhes: response.data.detalhes || []
-    };
-    
-    setTimeout(() => { passoAtual.value = 3; isProcessando.value = false; }, 600);
-    toast.add({ severity: 'success', summary: 'Importação Concluída', detail: 'Os dados foram gravados na plataforma com sucesso!' });
-
+    passo.value = 3;
   } catch (error) {
-    console.error("Erro na importação:", error);
-    toast.add({ severity: 'error', summary: 'Falha no Servidor', detail: error.response?.data?.detail || 'Ocorreu um erro crítico ao salvar as informações na base de dados.' });
-    isProcessando.value = false;
+    const detalhe = error?.response?.data?.detail;
+    const texto = typeof detalhe === 'string' ? detalhe : '';
+    if (error?.response?.status === 402 || texto.includes('Limite do plano atingido')) {
+      erroImportacao.value = { plano: true, texto: texto || 'Seu plano chegou ao limite de clientes ativos.' };
+    } else {
+      erroImportacao.value = { plano: false, texto: texto && texto.length < 200 ? texto : 'Não conseguimos salvar a planilha agora. Nada foi importado; tente de novo em instantes.' };
+    }
+    await nextTick();
+    areaErro.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } finally {
+    importando.value = false;
   }
 };
 
 const reiniciar = () => {
-  passoAtual.value = 1;
-  ficheiroSelecionado.value = null;
-  dadosPreview.value = [];
-  colunasDisponiveis.value = [];
+  passo.value = 1;
+  arquivo.value = null;
+  dados.value = [];
+  colunas.value = [];
   chavesCliente.value = [];
   chavesResposta.value = [];
-  resumoFinal.value = null;
+  resumo.value = null;
   ignorarErros.value = false;
-  mostrarApenasInvalidos.value = false;
-  companhiaSelecionada.value = null; 
-  if (fileInput.value) fileInput.value.value = '';
+  mostrarSoProblemas.value = false;
+  companhia.value = null;
+  erroImportacao.value = null;
+  erroLeitura.value = '';
 };
 </script>
 
 <template>
-  <div class="max-w-[1400px] mx-auto animate-fadein p-4 lg:p-8">
-    
-    <div class="flex flex-col md:flex-row md:justify-between md:items-end mb-8 gap-4">
-      <div>
-        <h1 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight italic">
-          Importação de Dados <span class="text-orange-500">.</span>
-        </h1>
-        <p class="text-[12px] text-slate-500 font-medium mt-1">Carregamento robusto de Clientes e Respostas NPS.</p>
-      </div>
-    </div>
+  <div class="max-w-5xl mx-auto flex flex-col gap-6 pb-24">
+    <header>
+      <h1 class="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">Importação<span class="text-orange-500">.</span></h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Traga seus clientes de uma planilha do Excel em poucos minutos.</p>
+    </header>
 
-    <div v-if="passoAtual === 1" class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-8 shadow-sm">
-      
-      <h3 class="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white mb-4">1. O que deseja importar?</h3>
-      
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <div 
-          @click="tipoImportacao = 'clientes'"
-          :class="['p-6 rounded-[1.5rem] border-2 cursor-pointer transition-all', tipoImportacao === 'clientes' ? 'border-orange-500 bg-orange-50/30 dark:bg-orange-500/10 shadow-md ring-4 ring-orange-500/10' : 'border-slate-100 dark:border-slate-800 hover:border-orange-300 bg-white dark:bg-slate-900']"
-        >
-          <div class="flex items-center gap-4 mb-3">
-             <div :class="['w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 transition-colors', tipoImportacao === 'clientes' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500']"><i class="pi pi-users"></i></div>
-             <div>
-               <h3 class="font-black text-slate-800 dark:text-white text-lg">Base de Clientes</h3>
-               <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Contatos e Empresas</p>
-             </div>
-          </div>
-          <p class="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">Importe ou atualize perfis, emails, empresas, cargos, segmentos e telefones de todos os seus clientes.</p>
+    <PassosImportacao :atual="passoVisual" />
+
+    <!-- 1 e 2: escolher, baixar modelo e enviar -->
+    <template v-if="passo === 1">
+      <section class="imp-cartao">
+        <h2 class="imp-titulo">O que você vai importar?</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Tipo de importação">
+          <button v-for="t in TIPOS" :key="t.valor" type="button" role="radio" :aria-checked="tipo === t.valor" @click="escolherTipo(t.valor)"
+            class="text-left flex gap-3 p-4 rounded-xl border-2 transition-colors"
+            :class="tipo === t.valor ? 'border-orange-500 bg-orange-50/60 dark:bg-orange-500/10' : 'border-slate-200 dark:border-slate-800 hover:border-orange-300 dark:hover:border-orange-500/40'">
+            <span :class="['w-10 h-10 rounded-full flex items-center justify-center shrink-0', tipo === t.valor ? 'bg-orange-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400']"><i :class="['pi', t.icone]"></i></span>
+            <span class="min-w-0">
+              <span class="block font-semibold text-slate-900 dark:text-white">{{ t.titulo }}</span>
+              <span class="block text-sm text-slate-600 dark:text-slate-300 mt-0.5">{{ t.texto }}</span>
+            </span>
+          </button>
         </div>
+      </section>
 
-        <div 
-          @click="tipoImportacao = 'respostas'"
-          :class="['p-6 rounded-[1.5rem] border-2 cursor-pointer transition-all', tipoImportacao === 'respostas' ? 'border-sky-500 bg-sky-50/30 dark:bg-sky-500/10 shadow-md ring-4 ring-sky-500/10' : 'border-slate-100 dark:border-slate-800 hover:border-sky-300 bg-white dark:bg-slate-900']"
-        >
-          <div class="flex items-center gap-4 mb-3">
-             <div :class="['w-12 h-12 rounded-full flex items-center justify-center text-xl shrink-0 transition-colors', tipoImportacao === 'respostas' ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500']"><i class="pi pi-star-fill"></i></div>
-             <div>
-               <h3 class="font-black text-slate-800 dark:text-white text-lg">Respostas NPS</h3>
-               <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Histórico de Pesquisas</p>
-             </div>
+      <section class="imp-cartao">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h2 class="imp-titulo"><span class="imp-numero-passo">1</span>Baixe o modelo e preencha</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">Abra no Excel, apague os exemplos e cole seus dados a partir da segunda linha. Não mude os nomes da primeira linha.</p>
           </div>
-          <p class="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">Importe o histórico de notas (0 a 10), comentários de feedback e as datas exatas das respostas.</p>
+          <button @click="baixar" class="imp-btn-secundario shrink-0" :class="modeloBaixado ? '' : 'border-orange-300! text-orange-700! dark:text-orange-300!'">
+            <i :class="['pi text-xs', modeloBaixado ? 'pi-check' : 'pi-download']"></i>{{ modeloBaixado ? 'Modelo baixado' : 'Baixar modelo' }}
+          </button>
         </div>
-      </div>
-
-      <hr class="border-slate-100 dark:border-slate-800 mb-8" />
-
-      <div class="flex flex-col md:flex-row gap-8 items-stretch">
-        <div class="flex-1 flex flex-col justify-center">
-          <div :class="['p-6 rounded-2xl border mb-4', tipoImportacao === 'clientes' ? 'bg-orange-50/50 border-orange-100' : 'bg-sky-50/50 border-sky-100']">
-            <h4 :class="['text-[11px] font-black uppercase tracking-widest flex items-center gap-2 mb-2', tipoImportacao === 'clientes' ? 'text-orange-600' : 'text-sky-600']">
-              <i class="pi pi-file-excel"></i> Template Obrigatório
-            </h4>
-            <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
-              Para evitar erros nas colunas e garantir uma validação perfeita, utilize sempre a nossa estrutura base.
-            </p>
-            <Button label="Baixar Arquivo Base (CSV)" icon="pi pi-download" class="!bg-white dark:!bg-slate-800 !text-slate-700 dark:!text-white !border !border-slate-200 dark:!border-slate-700 !rounded-xl !text-[10px] !font-black !uppercase !tracking-widest !px-5 shadow-sm" @click="baixarTemplate" />
-          </div>
+        <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400">
+              <tr><th class="text-left font-semibold px-3 py-2">Coluna</th><th class="text-left font-semibold px-3 py-2">O que colocar</th></tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+              <tr v-for="c in modelo.colunas" :key="c.nome">
+                <td class="px-3 py-2 align-top whitespace-nowrap">
+                  <code class="text-slate-800 dark:text-slate-100">{{ c.nome }}</code>
+                  <span v-if="modelo.obrigatorias.includes(c.nome)" class="ml-2 text-xs font-semibold text-orange-700 dark:text-orange-300">obrigatória</span>
+                </td>
+                <td class="px-3 py-2 text-slate-600 dark:text-slate-300">{{ c.explicacao }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+      </section>
 
-        <div class="flex-[2]">
-          <input type="file" ref="fileInput" accept=".csv, .xlsx, .xls" class="hidden" @change="processarFicheiro" />
-          
-          <div @click="!isProcessando && triggerFileInput()" :class="['border-2 border-dashed rounded-[2rem] p-12 flex flex-col items-center justify-center text-center transition-all h-full min-h-[250px]', isProcessando ? 'border-orange-500 bg-orange-50/50' : 'border-slate-200 dark:border-slate-700 hover:border-orange-500 hover:bg-orange-50/30 cursor-pointer']">
-            
-            <div v-if="isProcessando" class="w-full max-w-xs flex flex-col items-center">
-              <i class="pi pi-spin pi-spinner text-4xl text-orange-500 mb-4"></i>
-              <span class="text-sm font-bold text-slate-700 dark:text-white mb-3">Analisando arquivo na nuvem...</span>
-              <ProgressBar :value="progresso" :showValue="false" class="h-1.5 w-full bg-orange-100 rounded-full" />
-            </div>
-
-            <div v-else class="flex flex-col items-center">
-              <div class="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-4 text-slate-400 shadow-sm border border-slate-100 dark:border-slate-700 group-hover:scale-110 transition-transform"><i class="pi pi-cloud-upload text-2xl"></i></div>
-              <h3 class="text-base font-black text-slate-800 dark:text-white mb-2">Clique para anexar o seu arquivo</h3>
-              <p class="text-xs text-slate-500 font-medium">Suporta .CSV e .XLSX</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-else-if="passoAtual === 2" class="space-y-6">
-      
-      <div class="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm">
-        <h3 class="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white flex items-center gap-2 mb-2">
-          <i class="pi pi-key text-orange-500"></i> Chaves de Atualização
-        </h3>
-        <p class="text-[11px] text-slate-500 mb-6 font-medium">Defina como o sistema deve identificar se um registro já existe para evitar dados duplicados.</p>
-        
-        <div class="max-w-xl space-y-5">
-          
-          <div class="flex flex-col gap-1.5">
-            <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
-              {{ tipoImportacao === 'clientes' ? 'Identificadores de Clientes' : 'Vincular Resposta ao Cliente por:' }}
-            </label>
-            <MultiSelect v-model="chavesCliente" :options="colunasDisponiveis" placeholder="Recomendado: email" display="chip" class="custom-input w-full" />
-          </div>
-          
-          <div v-if="tipoImportacao === 'respostas'" class="flex flex-col gap-1.5 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
-              Identificadores da Resposta (Para evitar duplicatas)
-            </label>
-            <MultiSelect v-model="chavesResposta" :options="colunasDisponiveis" placeholder="Recomendado: data_resposta" display="chip" class="custom-input w-full" />
-          </div>
-
-        </div>
-      </div>
-
-      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 mt-10 mb-6">
-        <div class="flex gap-4">
-          <div class="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-5 py-4 rounded-[1.25rem] flex items-center gap-4 min-w-[160px] shadow-sm">
-             <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-500 shrink-0"><i class="pi pi-check text-xl"></i></div>
-             <div>
-                <div class="text-[9px] font-black uppercase tracking-widest text-emerald-600/70 mb-0.5">Prontos</div>
-                <div class="text-2xl font-black text-emerald-600 leading-none">{{ prontosCount }}</div>
-             </div>
-          </div>
-
-          <div class="bg-rose-50 dark:bg-rose-500/10 border border-rose-100 px-5 py-4 rounded-[1.25rem] flex items-center gap-4 min-w-[160px] shadow-sm transition-all" :class="errosCount > 0 ? 'animate-pulse ring-2 ring-rose-500/20' : 'opacity-50 grayscale'">
-             <div class="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-500 shrink-0"><i class="pi pi-exclamation-triangle text-xl"></i></div>
-             <div>
-                <div class="text-[9px] font-black uppercase tracking-widest text-rose-600/70 mb-0.5">Erros Detectados</div>
-                <div class="text-2xl font-black text-rose-600 leading-none">{{ errosCount }}</div>
-             </div>
-          </div>
-        </div>
-        
-        <div v-if="errosCount > 0" class="flex items-center gap-3 bg-white dark:bg-slate-800 p-2.5 pr-4 rounded-[1.25rem] border border-slate-200 shadow-sm cursor-pointer hover:border-rose-300 transition-colors" @click="mostrarApenasInvalidos = !mostrarApenasInvalidos">
-           <InputSwitch v-model="mostrarApenasInvalidos" class="pointer-events-none" />
-           <span class="text-[10px] font-black uppercase tracking-widest transition-colors" :class="mostrarApenasInvalidos ? 'text-rose-500' : 'text-slate-500'">Ver apenas {{ errosCount }} erros</span>
-        </div>
-      </div>
-
-      <DataTable :value="dadosFiltrados" :paginator="true" :rows="10" :rowClass="rowClass" class="p-datatable-sm custom-table border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm" responsiveLayout="scroll">
-        <template #empty>
-           <div class="text-center py-16 text-emerald-500 text-[11px] uppercase tracking-widest font-black flex flex-col items-center justify-center">
-             <div class="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4"><i class="pi pi-check-circle text-3xl"></i></div>
-             <span v-if="mostrarApenasInvalidos">Todos os registros estão perfeitos! Nenhum erro encontrado.</span>
-             <span v-else>Nenhum dado carregado.</span>
-           </div>
-        </template>
-
-        <Column v-for="col of colunasDisponiveis" :key="col" :field="col" :header="col" style="min-width: 200px;">
-           <template #body="sp">
-             <div class="truncate max-w-[200px] cursor-default" v-tooltip.top="sp.data[col]">
-               <span class="text-xs font-medium text-slate-600 dark:text-slate-300">{{ sp.data[col] || '---' }}</span>
-             </div>
-           </template>
-        </Column>
-
-        <Column header="Validação Extrema" alignFrozen="right" :frozen="true" style="min-width: 320px;" class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border-l border-slate-100 shadow-[-10px_0_15px_rgba(0,0,0,0.02)]">
-          <template #body="slotProps">
-            <div v-if="isRegistroValido(slotProps.data)" class="flex items-center gap-2">
-              <i class="pi pi-check text-emerald-500 font-bold"></i>
-              <span class="text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">Válido para Base de {{ tipoImportacao === 'clientes' ? 'Clientes' : 'Respostas' }}</span>
-            </div>
-            <div v-else class="flex flex-col gap-1.5">
-              <div class="flex items-center gap-1.5">
-                 <div class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
-                 <span class="text-[9px] font-black uppercase tracking-widest text-rose-500">Bloqueado</span>
-              </div>
-              <span class="text-[10px] font-bold text-slate-500 leading-relaxed pr-2">{{ getMotivoErro(slotProps.data) }}</span>
-            </div>
+      <section class="imp-cartao">
+        <h2 class="imp-titulo"><span class="imp-numero-passo">2</span>Envie a planilha preenchida</h2>
+        <input type="file" ref="fileInput" accept=".csv,.xlsx,.xls" class="hidden" @change="aoEscolherArquivo" />
+        <button type="button" @click="escolherArquivo" @dragover.prevent="arrastando = true" @dragleave.prevent="arrastando = false" @drop.prevent="aoSoltar" :disabled="lendo"
+          class="mt-3 w-full border-2 border-dashed rounded-2xl p-8 sm:p-10 flex flex-col items-center justify-center text-center transition-colors"
+          :class="arrastando || lendo ? 'border-orange-400 bg-orange-50/60 dark:bg-orange-500/10' : 'border-slate-300 dark:border-slate-700 hover:border-orange-400 hover:bg-orange-50/40 dark:hover:bg-orange-500/5'">
+          <template v-if="lendo">
+            <i class="pi pi-spin pi-spinner text-2xl text-orange-500"></i>
+            <span class="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Lendo {{ arquivo?.name }}...</span>
           </template>
-        </Column>
-      </DataTable>
+          <template v-else>
+            <span class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center"><i class="pi pi-upload text-lg"></i></span>
+            <span class="mt-3 text-base font-semibold text-slate-900 dark:text-white">Clique para escolher a planilha</span>
+            <span class="text-sm text-slate-500 dark:text-slate-400 mt-1">ou arraste o arquivo para cá · .xlsx, .xls ou .csv</span>
+          </template>
+        </button>
+        <p v-if="erroLeitura" role="alert" class="mt-3 text-sm text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 rounded-xl p-3 flex gap-2">
+          <i class="pi pi-times-circle mt-0.5 shrink-0"></i><span>{{ erroLeitura }}</span>
+        </p>
+        <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">Nada é gravado agora: primeiro você confere a prévia.</p>
+      </section>
+    </template>
 
-      <div class="bg-slate-50 dark:bg-slate-800/40 p-6 md:p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800 mt-8 mb-8">
-        <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><i class="pi pi-cog"></i> Execução e Segurança</h4>
-        
-        <div class="flex flex-col gap-6">
-          
-          <div class="flex flex-col gap-2 pb-6 border-b border-slate-200 dark:border-slate-700/50">
-            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Vincular a um Grupo (Opcional)</label>
-            <Dropdown 
-              v-model="companhiaSelecionada" 
-              :options="companhiasDisponiveis" 
-              optionLabel="nome" 
-              optionValue="id" 
-              placeholder="Selecione um Grupo" 
-              filter
-              showClear
-              class="custom-input w-full md:max-w-md !p-1" 
-            />
-            <span class="text-[10px] font-medium text-slate-400 ml-1">Todas as empresas deste arquivo serão associadas a este Grupo.</span>
+    <!-- 3: conferir -->
+    <template v-else-if="passo === 2">
+      <section class="imp-cartao flex flex-col gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="min-w-0">
+            <h2 class="imp-titulo">Confira antes de importar</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-300 mt-1 break-all">
+              <i class="pi pi-file text-xs mr-1"></i>{{ arquivo?.name }} · {{ linhas.length }} {{ linhas.length === 1 ? 'linha' : 'linhas' }}
+            </p>
           </div>
-
-          <div class="flex items-center justify-between group">
-            <div class="flex flex-col pr-4">
-              <span class="text-sm font-bold text-slate-800 dark:text-white">Atualizar registros já existentes</span>
-              <span class="text-[11px] text-slate-500 mt-1 leading-relaxed">Substitui as informações antigas no banco de dados pelos dados novos deste arquivo, baseando-se nas Chaves de Atualização.</span>
-            </div>
-            <InputSwitch v-model="configuracaoImportacao.overwrite" class="shrink-0" />
-          </div>
-
-          <div v-if="errosCount > 0" class="flex items-center justify-between pt-6 border-t border-slate-200 dark:border-slate-700/50">
-            <div class="flex flex-col pr-4">
-              <span class="text-sm font-bold text-rose-600 flex items-center gap-2"><i class="pi pi-shield"></i> Forçar importação ignorando erros</span>
-              <span class="text-[11px] text-slate-500 mt-1 leading-relaxed">Descarta os <span class="font-black text-rose-500">{{ errosCount }} bloqueados</span> e envia apenas os <span class="font-black text-emerald-500">{{ prontosCount }} prontos</span>.</span>
-            </div>
-            <InputSwitch v-model="ignorarErros" class="shrink-0" />
-          </div>
-
+          <button @click="reiniciar" class="imp-btn-secundario shrink-0"><i class="pi pi-arrow-left text-xs"></i>Trocar arquivo</button>
         </div>
-      </div>
 
-      <div class="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
-        <Button label="Voltar" icon="pi pi-arrow-left" text class="!text-slate-500 !font-black !uppercase !text-[10px] tracking-widest" @click="reiniciar" />
-        <Button label="Executar Importação" icon="pi pi-cloud-upload" :loading="isProcessando" class="!bg-orange-500 hover:!bg-orange-600 !text-white !border-none !rounded-xl !px-8 !py-4 !font-black !uppercase !text-[10px] tracking-widest shadow-lg shadow-orange-500/20 hover:scale-[1.02] transition-all" @click="enviarParaBackend" />
-      </div>
-    </div>
+        <div v-if="colunasFaltando.length" role="alert" class="text-sm text-rose-800 dark:text-rose-200 bg-rose-50 dark:bg-rose-500/10 rounded-xl p-3">
+          <p class="font-semibold">Faltam colunas na planilha: {{ colunasFaltando.map(c => `"${c}"`).join(', ') }}</p>
+          <p class="mt-1">Confira se a primeira linha tem os nomes exatamente como no modelo<span v-if="tipo === 'respostas'"> e se você escolheu "Respostas antigas" de propósito</span>.</p>
+        </div>
+        <p v-if="colunasIgnoradas.length" class="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3">
+          Estas colunas não fazem parte do modelo e serão ignoradas: {{ colunasIgnoradas.join(', ') }}.
+        </p>
 
-    <div v-else-if="passoAtual === 3" class="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 p-12 text-center shadow-sm">
-      <div class="w-24 h-24 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 shadow-sm"><i class="pi pi-check-circle"></i></div>
-      <h2 class="text-2xl font-black text-slate-800 dark:text-white mb-2">Importação Concluída!</h2>
-      <p class="text-slate-500 mb-8 font-medium">Operação finalizada com sucesso na base de {{ tipoImportacao === 'clientes' ? 'Clientes' : 'Respostas' }}.</p>
-      
-      <div class="max-w-md mx-auto bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl text-left border border-slate-100 dark:border-slate-700 mb-8">
-        <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Relatório do Servidor</h3>
-        <div class="space-y-3">
-          
-          <div class="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-700">
-            <span class="text-sm font-bold text-slate-700 dark:text-slate-200">Linhas Processadas com Sucesso</span>
-            <span class="text-lg font-black text-emerald-500">{{ resumoFinal?.inseridos || 0 }}</span>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+            <p class="text-sm font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-2"><i class="pi pi-check-circle text-emerald-500"></i>Prontas</p>
+            <p class="text-2xl font-black text-slate-900 dark:text-white tabular-nums mt-1">{{ prontas.length }}</p>
           </div>
-          
-          <div class="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-slate-700">
-            <span class="text-sm font-bold text-slate-700 dark:text-slate-200">Falhas e Descartações</span>
-            <span class="text-lg font-black text-rose-500">{{ resumoFinal?.erros || 0 }}</span>
-          </div>
+          <button type="button" @click="comProblema.length && (mostrarSoProblemas = !mostrarSoProblemas)" :aria-pressed="mostrarSoProblemas" :disabled="!comProblema.length"
+            class="text-left rounded-xl border p-4 transition-colors disabled:cursor-default"
+            :class="mostrarSoProblemas ? 'border-orange-400 ring-2 ring-orange-500/20' : comProblema.length ? 'border-slate-200 dark:border-slate-800 hover:border-orange-300' : 'border-slate-200 dark:border-slate-800'">
+            <span class="text-sm font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-2"><i :class="['pi pi-exclamation-triangle', comProblema.length ? 'text-rose-500' : 'text-slate-400']"></i>Com problema</span>
+            <span class="block text-2xl font-black text-slate-900 dark:text-white tabular-nums mt-1">{{ comProblema.length }}</span>
+            <span v-if="comProblema.length" class="block text-sm text-orange-700 dark:text-orange-300">{{ mostrarSoProblemas ? 'Mostrar todas' : 'Ver só essas' }}</span>
+          </button>
+        </div>
 
-          <div v-if="resumoFinal.detalhes && resumoFinal.detalhes.length > 0" class="pt-4">
-            <h3 class="text-[10px] font-black uppercase tracking-widest text-rose-500 mb-3">Detalhes dos Registros Não Importados</h3>
-            <div class="bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/50 rounded-xl p-3 max-h-48 overflow-y-auto custom-scrollbar shadow-inner">
-              <ul class="flex flex-col gap-2">
-                <li v-for="(erro, index) in resumoFinal.detalhes" :key="index" class="text-[10px] font-medium text-slate-600 dark:text-slate-400 flex items-start gap-2">
-                  <i class="pi pi-times-circle text-rose-500 mt-[3px]"></i>
-                  <span><strong class="text-slate-800 dark:text-slate-200">{{ erro.email }}:</strong> {{ erro.motivo }}</span>
-                </li>
+        <DataTable :value="linhasVisiveis" :paginator="linhasVisiveis.length > 10" :rows="10" dataKey="numero" class="imp-tabela" scrollable>
+          <template #empty><p class="py-8 text-center text-sm text-slate-500 dark:text-slate-400">Nenhuma linha com problema.</p></template>
+          <Column header="Linha" style="width: 70px">
+            <template #body="{ data }"><span class="tabular-nums text-slate-500 dark:text-slate-400">{{ data.numero }}</span></template>
+          </Column>
+          <Column header="Situação" style="min-width: 240px">
+            <template #body="{ data }">
+              <span v-if="!data.problemas.length" class="imp-tag imp-tag-ok"><i class="pi pi-check text-xs"></i>Pronta</span>
+              <ul v-else class="flex flex-col gap-1">
+                <li v-for="p in data.problemas" :key="p" class="flex gap-1.5 text-rose-700 dark:text-rose-300"><i class="pi pi-times-circle text-xs mt-1 shrink-0"></i><span>{{ p }}</span></li>
               </ul>
+            </template>
+          </Column>
+          <Column v-for="col in colunas" :key="col" :header="col" style="min-width: 150px">
+            <template #body="{ data }">
+              <span class="block max-w-[220px] truncate" :title="String(data.row[col] ?? '')" :class="data.row[col] === '' || data.row[col] == null ? 'text-slate-400' : ''">{{ data.row[col] === '' || data.row[col] == null ? '—' : data.row[col] }}</span>
+            </template>
+          </Column>
+        </DataTable>
+      </section>
+
+      <section class="imp-cartao flex flex-col gap-5">
+        <h2 class="imp-titulo">Como importar</h2>
+
+        <label v-if="comProblema.length" class="flex items-start justify-between gap-4 cursor-pointer">
+          <span>
+            <span class="block text-sm font-semibold text-slate-800 dark:text-slate-100">Importar só as linhas sem problema</span>
+            <span class="block text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ comProblema.length }} {{ comProblema.length === 1 ? 'linha fica' : 'linhas ficam' }} de fora; você pode corrigir e importar depois.</span>
+          </span>
+          <InputSwitch v-model="ignorarErros" class="imp-switch shrink-0" ariaLabel="Importar só as linhas sem problema" />
+        </label>
+
+        <label class="flex items-start justify-between gap-4 cursor-pointer">
+          <span>
+            <span class="block text-sm font-semibold text-slate-800 dark:text-slate-100">Atualizar quem já está cadastrado</span>
+            <span class="block text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              {{ overwrite ? 'Os dados da planilha substituem os antigos.' : 'Quem já existe fica como está; só entram os novos.' }}
+            </span>
+          </span>
+          <InputSwitch v-model="overwrite" class="imp-switch shrink-0" ariaLabel="Atualizar quem já está cadastrado" />
+        </label>
+
+        <div v-if="companhias.length" class="imp-campo">
+          <label for="imp-grupo">Grupo das empresas (opcional)</label>
+          <Dropdown inputId="imp-grupo" v-model="companhia" :options="companhias" optionLabel="nome" optionValue="id" placeholder="Sem grupo" filter showClear class="w-full sm:max-w-md" panelClass="imp-painel" />
+          <small class="text-sm text-slate-500 dark:text-slate-400">Todas as empresas desta planilha entram nesse grupo.</small>
+        </div>
+
+        <div>
+          <button type="button" @click="opcoesAvancadas = !opcoesAvancadas" :aria-expanded="opcoesAvancadas" class="imp-link inline-flex items-center gap-1">
+            <i :class="['pi text-xs', opcoesAvancadas ? 'pi-chevron-up' : 'pi-chevron-down']"></i>Opções avançadas
+          </button>
+          <div v-if="opcoesAvancadas" class="mt-3 flex flex-col gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+            <div class="imp-campo">
+              <label>{{ tipo === 'clientes' ? 'Reconhecer quem já está cadastrado pela coluna' : 'Encontrar o contato de cada resposta pela coluna' }}</label>
+              <MultiSelect v-model="chavesCliente" :options="colunas" placeholder="Escolha (recomendado: email)" display="chip" class="w-full" panelClass="imp-painel" />
+              <small class="text-sm text-slate-500 dark:text-slate-400">Recomendado: email. Assim a mesma pessoa não é cadastrada duas vezes.</small>
+            </div>
+            <div v-if="tipo === 'respostas'" class="imp-campo">
+              <label>Reconhecer respostas repetidas pela coluna</label>
+              <MultiSelect v-model="chavesResposta" :options="colunas" placeholder="Escolha (recomendado: data_resposta)" display="chip" class="w-full" panelClass="imp-painel" />
+              <small class="text-sm text-slate-500 dark:text-slate-400">Se o mesmo contato já tiver resposta nessa data, ela é atualizada em vez de duplicada.</small>
             </div>
           </div>
-
         </div>
-      </div>
 
-      <Button label="Iniciar Nova Importação" icon="pi pi-refresh" class="!bg-slate-800 hover:!bg-slate-700 !text-white !border-none !rounded-xl !px-8 !py-4 !font-black !uppercase !text-[10px] tracking-widest" @click="reiniciar" />
-    </div>
+        <div v-if="erroImportacao" ref="areaErro" role="alert"
+          class="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10">
+          <i :class="['pi text-rose-600 dark:text-rose-400', erroImportacao.plano ? 'pi-lock' : 'pi-times-circle']"></i>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-rose-800 dark:text-rose-200">{{ erroImportacao.plano ? 'Seu plano chegou ao limite' : 'A importação não foi feita' }}</p>
+            <p class="text-sm text-rose-700 dark:text-rose-300 mt-0.5">{{ erroImportacao.texto }}</p>
+          </div>
+          <button v-if="erroImportacao.plano" @click="router.push('/assinatura')" class="imp-btn-primario shrink-0"><i class="pi pi-wallet text-xs"></i>Ver planos</button>
+        </div>
 
+        <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <p class="text-sm text-slate-500 dark:text-slate-400">{{ bloqueio }}</p>
+          <button @click="importar" :disabled="!!bloqueio || importando" class="imp-btn-primario shrink-0">
+            <i :class="['pi text-xs', importando ? 'pi-spin pi-spinner' : 'pi-check']"></i>{{ importando ? 'Importando...' : rotuloImportar }}
+          </button>
+        </div>
+      </section>
+    </template>
+
+    <!-- 4: pronto -->
+    <ResultadoImportacao v-else-if="resumo" :tipo="tipo" :resumo="resumo" @reiniciar="reiniciar" />
   </div>
 </template>
 
 <style scoped>
 @reference "../style.css";
 
-.animate-fadein { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.imp-cartao { @apply bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-6 min-w-0; }
+.imp-titulo { @apply flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white; }
+.imp-numero-passo { @apply w-6 h-6 rounded-full bg-orange-500 text-white text-xs font-bold inline-flex items-center justify-center shrink-0; }
 
-:deep(.p-progressbar-value) { @apply bg-orange-500 transition-all duration-300; }
-:deep(.custom-input) { @apply bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-orange-500/20 transition-all font-medium text-slate-800 dark:text-white; }
-:deep(.custom-table), :deep(.custom-table .p-datatable-wrapper) { @apply bg-white dark:bg-slate-900; }
-:deep(.custom-table .p-datatable-thead > tr > th) { @apply bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-widest text-slate-400 py-5 px-4; }
-:deep(.custom-table .p-datatable-tbody > tr) { @apply border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors; }
-:deep(.custom-table .p-datatable-tbody > tr > td) { @apply py-4 px-4; }
+:deep(.imp-tabela) { @apply bg-transparent! rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden; font-family: inherit; }
+:deep(.imp-tabela .p-datatable-wrapper) { @apply overflow-x-auto; }
+:deep(.imp-tabela .p-datatable-thead > tr > th) { @apply bg-slate-50! dark:bg-slate-800! text-xs! font-semibold! text-slate-500! dark:text-slate-400! border-slate-100! dark:border-slate-800! py-3! px-3! whitespace-nowrap; }
+:deep(.imp-tabela .p-datatable-tbody > tr) { @apply bg-white! dark:bg-slate-900! text-slate-700! dark:text-slate-200!; }
+:deep(.imp-tabela .p-datatable-tbody > tr > td) { @apply py-2.5! px-3! text-sm border-slate-100! dark:border-slate-800! align-top; }
+:deep(.imp-tabela .p-paginator) { @apply bg-transparent! border-0! border-t! border-slate-100! dark:border-slate-800! text-sm; }
+:deep(.imp-tabela .p-paginator .p-paginator-page.p-highlight) { @apply bg-orange-50! text-orange-700! dark:bg-orange-500/15! dark:text-orange-300!; }
+:deep(.imp-tabela .p-paginator button) { @apply dark:text-slate-400!; }
+</style>
 
-/* Custom Scrollbar */
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgb(226 232 240); border-radius: 9999px; }
-:global(.dark) .custom-scrollbar::-webkit-scrollbar-thumb { background: rgb(51 65 85); }
+<style>
+@reference "../style.css";
+/* Globais com prefixo imp-: valem também no resumo final e nos painéis do Dropdown/MultiSelect (abertos fora da página) */
+.imp-btn-primario { @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap; }
+.imp-btn-secundario { @apply inline-flex items-center justify-center gap-2 h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:border-orange-300 hover:text-orange-700 dark:hover:text-orange-300 transition-colors whitespace-nowrap; }
+.imp-link { @apply text-sm font-semibold text-orange-600 dark:text-orange-400 hover:underline; }
+.imp-tag { @apply inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-md whitespace-nowrap; }
+.imp-tag-ok { @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300; }
+.imp-numero { @apply rounded-xl border border-slate-200 dark:border-slate-800 p-4; }
+.imp-numero dt { @apply text-sm font-semibold text-slate-600 dark:text-slate-300; }
+.imp-numero dd { @apply text-2xl font-black text-slate-900 dark:text-white tabular-nums mt-1; }
+.imp-switch.p-inputswitch.p-highlight .p-inputswitch-slider { @apply bg-orange-500!; }
+.imp-switch.p-inputswitch:not(.p-highlight) .p-inputswitch-slider { @apply dark:bg-slate-700!; }
+
+.imp-campo { @apply flex flex-col gap-1.5 min-w-0; }
+.imp-campo > label { @apply text-sm font-semibold text-slate-700 dark:text-slate-200; }
+.imp-campo .p-dropdown,
+.imp-campo .p-multiselect { @apply rounded-xl! border-slate-300! dark:border-slate-700! bg-white! dark:bg-slate-950! text-sm!; }
+.imp-campo .p-dropdown .p-dropdown-label,
+.imp-campo .p-multiselect .p-multiselect-label { @apply text-sm! text-slate-800! dark:text-slate-100!; }
+.imp-campo .p-placeholder { @apply text-slate-400!; }
+.imp-campo .p-inputtext, .imp-painel .p-inputtext, .imp-painel li { font-family: inherit; }
+.imp-campo .p-dropdown-trigger, .imp-campo .p-multiselect-trigger { @apply text-slate-400!; }
+.imp-campo .p-multiselect-token { @apply bg-orange-50! text-orange-700! dark:bg-orange-500/15! dark:text-orange-300! text-sm!; }
+.imp-campo .p-dropdown:not(.p-disabled).p-focus,
+.imp-campo .p-multiselect:not(.p-disabled).p-focus { @apply border-orange-400! shadow-none! ring-2 ring-orange-500/20; }
+.imp-painel { @apply dark:bg-slate-900! dark:border-slate-700!; }
+.imp-painel .p-dropdown-item, .imp-painel .p-multiselect-item { @apply text-sm! dark:text-slate-200!; }
+.imp-painel .p-dropdown-item.p-highlight, .imp-painel .p-multiselect-item.p-highlight { @apply bg-orange-50! text-orange-700! dark:bg-orange-500/15! dark:text-orange-300!; }
+.imp-painel .p-dropdown-header, .imp-painel .p-multiselect-header { @apply dark:bg-slate-900! dark:border-slate-700!; }
+.imp-painel .p-inputtext { @apply dark:bg-slate-950! dark:text-slate-100! dark:border-slate-700!; }
+.imp-painel .p-checkbox .p-checkbox-box.p-highlight { @apply border-orange-500! bg-orange-500!; }
 </style>

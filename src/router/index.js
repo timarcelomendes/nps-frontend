@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 // Mantenha aqui os imports que já tinha
 // import LoginView from '../views/LoginView.vue'; // (Descomente se estiver importando no topo)
 import AdminLimpezaView from '../views/AdminLimpezaView.vue';
+import { temPerfil, perfilAtual } from '../utils/permissoes';
 
 const routes = [
   // ==========================================
@@ -152,24 +153,18 @@ router.beforeEach((to, from, next) => {
   const token = sessionStorage.getItem('token');
   const isAuthenticated = !!token;
   
-  // 🎯 NORMALIZAÇÃO TOTAL: Tudo em minúsculo e sem depender de acentos complexos
-  const rawTipo = (sessionStorage.getItem('usuario_tipo') || 'usuário').toLowerCase();
-
   if ((to.path === '/login' || to.path === '/cadastro') && isAuthenticated) return next('/');
   if (to.meta.requiresAuth && !isAuthenticated) return next('/login');
 
-  if (to.meta.roles) {
-    // 🎯 COMPARAÇÃO BLINDADA: Transformamos as roles da rota em minúsculo também
-    const rolesPermitidas = to.meta.roles.map(r => r.toLowerCase());
-    
-    if (!rolesPermitidas.includes(rawTipo)) {
-      console.warn(`🚫 Bloqueado: ${rawTipo} não está em ${rolesPermitidas}`);
-      if (to.path === '/') {
-        sessionStorage.clear();
-        return next('/login');
-      }
-      return next('/');
+  // Perfis comparados sem acento e sem diferença de maiúsculas ("Usuário" == "usuario").
+  // Só controla a tela: o backend também precisa recusar (403) quem não tem o perfil.
+  if (to.meta.roles && !temPerfil(to.meta.roles)) {
+    console.warn(`Acesso bloqueado: perfil "${perfilAtual()}" não pode abrir ${to.path}`);
+    if (to.path === '/') {
+      sessionStorage.clear();
+      return next('/login');
     }
+    return next('/');
   }
   next();
 });

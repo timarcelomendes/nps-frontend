@@ -1,112 +1,93 @@
-<template>
-  <div class="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 transition-colors duration-300 relative overflow-hidden font-sans">
-    
-    <div class="fixed inset-0 z-0 opacity-40 dark:opacity-100 pointer-events-none">
-      <div v-for="n in 50" :key="n" 
-           class="absolute bg-slate-300 dark:bg-white rounded-full animate-twinkle"
-           :style="{
-             width: Math.random() * 3 + 'px',
-             height: Math.random() * 3 + 'px',
-             top: Math.random() * 100 + '%',
-             left: Math.random() * 100 + '%',
-             animationDelay: Math.random() * 5 + 's',
-             animationDuration: Math.random() * 3 + 2 + 's'
-           }">
-      </div>
-    </div>
-
-    <div class="w-full max-w-md z-10 animate-fadein">
-      <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-8 md:p-10 rounded-[2rem] shadow-2xl border border-white/20 dark:border-slate-800/50">
-        
-        <div class="flex flex-col items-center mb-8 text-center">
-          <div class="w-16 h-16 mb-4 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-            <i class="pi pi-refresh text-orange-500 text-3xl"></i>
-          </div>
-          <h1 class="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">Recuperar Senha</h1>
-          <p class="text-sm text-slate-500 dark:text-slate-400 mt-2">Insira o seu e-mail para receber o link.</p>
-        </div>
-
-        <transition name="fade-slide" mode="out-in">
-          <div v-if="!enviado" key="form">
-            <form @submit.prevent="recuperarSenha" class="space-y-6">
-              <div class="space-y-2">
-                <label class="text-[10px] font-bold uppercase text-slate-400 ml-1 tracking-widest">E-mail Corporativo</label>
-                <InputText v-model="email" type="email" placeholder="exemplo@empresa.com" class="custom-input w-full" required />
-              </div>
-
-              <Button type="submit" :loading="loading" class="w-full !bg-sky-500 hover:!bg-sky-600 !border-none !py-4 !rounded-xl !font-bold !text-white transition-all shadow-lg shadow-sky-500/20">
-                {{ loading ? 'Enviando...' : 'Enviar Instruções' }}
-              </Button>
-            </form>
-          </div>
-
-          <div v-else key="sucesso" class="text-center py-4">
-            <div class="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <i class="pi pi-check text-green-500 text-2xl"></i>
-            </div>
-            <p class="font-bold text-slate-800 dark:text-white">E-mail enviado!</p>
-            <p class="text-sm text-slate-500 mt-1">Verifique a sua caixa de entrada.</p>
-          </div>
-        </transition>
-
-        <div class="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 text-center">
-          <button @click="router.push('/login')" class="text-xs font-bold text-slate-400 hover:text-orange-500 transition-colors bg-transparent border-none cursor-pointer flex items-center justify-center gap-2 mx-auto">
-            <i class="pi pi-arrow-left text-[10px]"></i> Voltar ao Login
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { useToast } from 'primevue/usetoast';
+// Pedido de link para criar uma nova senha. A resposta é sempre a mesma, exista ou não a conta.
+import { ref, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import api from '../services/api';
-import InputText from 'primevue/inputtext';
-import Button from 'primevue/button';
+import AcessoLayout from '../components/acesso/AcessoLayout.vue';
+import AvisoAcesso from '../components/acesso/AvisoAcesso.vue';
+import { emailValido, comAvisoDeDemora, mensagemGenerica, TEMPO_LIMITE } from '../components/acesso/acesso.js';
 
+const route = useRoute();
 const router = useRouter();
-const toast = useToast();
 const email = ref('');
-const loading = ref(false);
-const enviado = ref(false);
+const erroEmail = ref('');
+const erro = ref('');
+const enviando = ref(false);
+const lento = ref(false);
+const enviadoPara = ref('');
+
+onMounted(() => {
+  if (typeof route.query.email === 'string') email.value = route.query.email;
+});
 
 const recuperarSenha = async () => {
-  if (!email.value) {
-    toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Insira o e-mail.', life: 3000 });
+  if (enviando.value) return;
+  erro.value = '';
+  const alvo = email.value.trim();
+  if (!emailValido(alvo)) {
+    erroEmail.value = alvo ? 'Digite um e-mail válido, como nome@empresa.com.br.' : 'Digite o e-mail da sua conta.';
+    document.getElementById('email')?.focus();
     return;
   }
-  loading.value = true;
+  enviando.value = true;
   try {
-    await api.post('/esqueci-senha', { email: email.value });
-    enviado.value = true;
-  } catch (error) {
-    toast.add({ severity: 'error', summary: 'Erro', detail: 'E-mail não encontrado.', life: 5000 });
+    await comAvisoDeDemora(() => api.post('/esqueci-senha', { email: alvo }, { timeout: TEMPO_LIMITE }), (v) => { lento.value = v; });
+    enviadoPara.value = alvo;
+  } catch (e) {
+    erro.value = mensagemGenerica(e, 'Não foi possível enviar o link. Tente de novo.');
   } finally {
-    loading.value = false;
+    enviando.value = false;
   }
 };
+
+const voltarAoLogin = () => router.push({ path: '/login', query: emailValido(email.value) ? { email: email.value.trim() } : {} });
 </script>
 
-<style scoped>
-@reference "../style.css";
+<template>
+  <AcessoLayout>
+    <div v-if="enviadoPara" class="text-center" role="status">
+      <div class="w-14 h-14 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 mx-auto flex items-center justify-center text-2xl">
+        <i class="pi pi-envelope" aria-hidden="true"></i>
+      </div>
+      <h1 class="text-xl font-bold text-slate-900 dark:text-white mt-4">Confira o seu e-mail</h1>
+      <p class="text-slate-600 dark:text-slate-300 mt-2">
+        Se existir uma conta com <strong class="break-all">{{ enviadoPara }}</strong>, enviamos um link para criar uma nova senha. O link vale por 30 minutos.
+      </p>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-4">Não chegou em alguns minutos? Olhe o spam e confira se o e-mail está certo.</p>
+      <div class="flex flex-col gap-3 mt-6">
+        <button type="button" class="acesso-botao" @click="voltarAoLogin">Voltar para o login</button>
+        <button type="button" class="acesso-botao-sec" @click="enviadoPara = ''">Usar outro e-mail ou enviar de novo</button>
+      </div>
+    </div>
 
-.animate-fadein { animation: fadeIn 0.4s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    <form v-else @submit.prevent="recuperarSenha" class="flex flex-col gap-4" novalidate :aria-busy="enviando">
+      <div>
+        <h1 class="text-xl font-bold text-slate-900 dark:text-white">Esqueceu a senha?</h1>
+        <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">Digite o e-mail da sua conta. Vamos enviar um link para você criar uma senha nova.</p>
+      </div>
 
-@keyframes twinkle {
-  0%, 100% { opacity: 0.2; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.2); }
-}
-.animate-twinkle { animation: twinkle infinite ease-in-out; }
+      <AvisoAcesso v-if="erro" tipo="erro">{{ erro }}</AvisoAcesso>
 
-:deep(.custom-input) {
-  @apply bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 p-4 rounded-xl focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all text-slate-800 dark:text-white;
-}
+      <div>
+        <label for="email" class="acesso-rotulo">E-mail</label>
+        <input id="email" v-model="email" type="email" name="email" autocomplete="email" inputmode="email" placeholder="nome@empresa.com.br"
+          class="acesso-campo" :aria-invalid="erroEmail ? 'true' : undefined" :aria-describedby="erroEmail ? 'email-erro' : undefined" @input="erroEmail = ''" />
+        <p v-if="erroEmail" id="email-erro" class="acesso-erro-campo">{{ erroEmail }}</p>
+      </div>
 
-.fade-slide-enter-active, .fade-slide-leave-active { transition: all 0.3s ease; }
-.fade-slide-enter-from { opacity: 0; transform: scale(0.95); }
-.fade-slide-leave-to { opacity: 0; transform: scale(1.05); }
-</style>
+      <p v-if="lento" class="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2" role="status">
+        <i class="pi pi-spin pi-spinner text-orange-600" aria-hidden="true"></i>
+        Conectando ao servidor, isso pode levar alguns segundos.
+      </p>
+
+      <button type="submit" class="acesso-botao" :disabled="enviando">
+        <i v-if="enviando" class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+        {{ enviando ? 'Enviando...' : 'Enviar link' }}
+      </button>
+
+      <p class="mt-2 pt-4 border-t border-slate-200 dark:border-slate-800 text-sm text-center text-slate-600 dark:text-slate-300">
+        Lembrou a senha? <a href="/login" @click.prevent="voltarAoLogin" class="acesso-link">Entrar</a>
+      </p>
+    </form>
+  </AcessoLayout>
+</template>

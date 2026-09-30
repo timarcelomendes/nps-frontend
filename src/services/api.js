@@ -23,14 +23,19 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (status === 401 || status === 403) {
-          if (window.location.pathname === '/login' || window.location.pathname.startsWith('/r/') || window.location.pathname.startsWith('/f/') || (error.config && error.config.url.includes('/login'))) {
-            return Promise.reject(error);
-          }
-          sessionStorage.clear();
-          window.location.href = '/login'; 
-        }
-    
+    // Só 401 (sessão expirada/encerrada) derruba o login. 403 = "seu perfil não pode fazer isso":
+    // a tela mostra a mensagem e o usuário continua logado.
+    if (status === 401) {
+      const ehLogin = error.config && error.config.url && error.config.url.includes('/login');
+      const estavaLogado = !!sessionStorage.getItem('token');
+      if (!ehLogin && estavaLogado) {
+        sessionStorage.clear();
+        const motivo = error.response?.data?.detail;
+        if (motivo) sessionStorage.setItem('aviso_login', motivo);
+        window.location.href = '/login';
+      }
+    }
+
     return Promise.reject(error);
   }
 );
